@@ -101,7 +101,7 @@ class _TransactionIndex:
         transaction_id = self._hash(description)
         if transaction_id not in self.__embedding_index:
             embedding = await self.__encoder.encode(description)
-            _ = self.__embedding_index.add(  # pyright: ignore[reportUnknownVariableType]
+            _ = self.__embedding_index.add(
                 keys=transaction_id,
                 vectors=np.array(embedding),
             )
