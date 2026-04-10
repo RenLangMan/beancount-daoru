@@ -1,5 +1,5 @@
 #!/bin/bash
-# scripts/activate.sh - 快速激活项目环境（跨平台：Windows Git Bash / Linux）
+# scripts/activate.sh - 快速激活项目环境（跨平台:Windows Git Bash / Linux）
 
 # 获取脚本所在目录的父目录（项目根目录）
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

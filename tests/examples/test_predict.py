@@ -33,24 +33,24 @@ def start_llama_server(  # noqa: PLR0913
     ctx_size: int = 0,
     is_embedding: bool = False,
 ) -> Generator[None]:
-    """启动 Llama.cpp 服务器进程。
+    """启动 Llama.cpp 服务器进程.
 
-    此函数启动一个 llama-server 进程，用于提供 LLM 推理服务。
+    此函数启动一个 llama-server 进程,用于提供 LLM 推理服务。
     支持嵌入模型和聊天补全模型两种模式。
 
-    参数：
-        xprocess: xprocess 实例，用于管理外部进程
+    参数:
+        xprocess: xprocess 实例,用于管理外部进程
         model_hf: Hugging Face 模型标识符
         model_alias: 模型别名
         port: 服务端口号
-        ctx_size: 上下文大小（token 数）
-        is_embedding: 是否为嵌入模式（True）还是聊天补全模式（False）
+        ctx_size: 上下文大小(token 数)
+        is_embedding: 是否为嵌入模式(True)还是聊天补全模式(False)
 
-    返回：
-        生成器，在服务器运行期间保持进程
+    返回:
+        生成器,在服务器运行期间保持进程
 
-    注意：
-        如果 llama-server 不在 PATH 中，测试会被跳过
+    注意:
+        如果 llama-server 不在 PATH 中,测试会被跳过
     """
     exec_name = "llama-server"
     if shutil.which(exec_name) is None:
@@ -95,15 +95,15 @@ def start_llama_server(  # noqa: PLR0913
 
 @pytest.fixture(scope="session")
 def embedding_server(xprocess: XProcess) -> Generator[None]:
-    """嵌入模型服务器固件。
+    """嵌入模型服务器固件.
 
     启动一个用于生成文本嵌入向量的 LLM 服务器。
     使用 unsloth/embeddinggemma-300m-GGUF 量化模型。
 
-    参数：
+    参数:
         xprocess: xprocess 实例
 
-    返回：
+    返回:
         服务器进程生成器
     """
     yield from start_llama_server(
@@ -118,15 +118,15 @@ def embedding_server(xprocess: XProcess) -> Generator[None]:
 
 @pytest.fixture(scope="session")
 def chat_completion_server(xprocess: XProcess) -> Generator[None]:
-    """聊天补全模型服务器固件。
+    """聊天补全模型服务器固件.
 
     启动一个用于生成文本补全的 LLM 服务器。
     使用 unsloth/Qwen3-4B-Instruct-2507-GGUF 量化模型。
 
-    参数：
+    参数:
         xprocess: xprocess 实例
 
-    返回：
+    返回:
         服务器进程生成器
     """
     yield from start_llama_server(
@@ -141,12 +141,12 @@ def chat_completion_server(xprocess: XProcess) -> Generator[None]:
 def __check_diff_with_tolerance(
     git_repo: git.Repo, file_path: Path, /, max_lines: int
 ) -> None:
-    """检查 Git diff 并在允许的行数内容忍差异。
+    """检查 Git diff 并在允许的行数内容忍差异.
 
-    由于 LLM 生成结果可能具有非确定性，此函数允许一定数量的差异行。
-    如果差异行数超过阈值则测试失败，否则仅发出警告。
+    由于 LLM 生成结果可能具有非确定性,此函数允许一定数量的差异行。
+    如果差异行数超过阈值则测试失败,否则仅发出警告。
 
-    参数：
+    参数:
         git_repo: Git 仓库实例
         file_path: 要检查的文件路径
         max_lines: 允许的最大差异行数
@@ -167,12 +167,12 @@ def __check_diff_with_tolerance(
 
 @pytest.mark.usefixtures("embedding_server", "chat_completion_server")
 def test_zero_shot(git_repo: git.Repo) -> None:
-    """测试零样本预测（Zero-shot prediction）。
+    """测试零样本预测(Zero-shot prediction).
 
-    使用账户定义文件作为上下文，让 LLM 预测交易中缺失的会计科目。
-    允许最多 4 行的差异，因为 LLM 输出可能有轻微变化。
+    使用账户定义文件作为上下文,让 LLM 预测交易中缺失的会计科目。
+    允许最多 4 行的差异,因为 LLM 输出可能有轻微变化。
 
-    参数：
+    参数:
         git_repo: Git 仓库实例
     """
     ZERO_SHOT_PREDICTED_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -192,12 +192,12 @@ def test_zero_shot(git_repo: git.Repo) -> None:
 
 @pytest.mark.usefixtures("embedding_server", "chat_completion_server")
 def test_few_shot(git_repo: git.Repo) -> None:
-    """测试少样本预测（Few-shot prediction）。
+    """测试少样本预测(Few-shot prediction).
 
-    使用现有账簿作为历史示例，让 LLM 基于相似交易预测缺失的会计科目。
-    要求完全没有差异（max_lines=0），因为使用历史数据应该产生更稳定的结果。
+    使用现有账簿作为历史示例,让 LLM 基于相似交易预测缺失的会计科目。
+    要求完全没有差异(max_lines=0),因为使用历史数据应该产生更稳定的结果。
 
-    参数：
+    参数:
         git_repo: Git 仓库实例
     """
     FEW_SHOT_PREDICTED_FILE.parent.mkdir(parents=True, exist_ok=True)
