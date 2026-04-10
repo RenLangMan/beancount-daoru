@@ -46,7 +46,7 @@ main:
     - *ci-template
 
 # feat/ci 分支配置（数组形式）
-"feat/ci":
+"feat/*":
   push:
     - *ci-template
   pull_request:
