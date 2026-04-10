@@ -136,6 +136,7 @@ celerybeat.pid
 # Environments
 .env
 .envrc
+.env.local  # 添加本地环境配置
 .venv
 env/
 venv/
@@ -208,3 +209,52 @@ __marimo__/
 
 # examples
 examples/predict/.cache
+
+# ===== 针对 beancount-daoru 项目的额外配置 =====
+
+# 脚本备份（如果有）
+*.bak
+*.swp
+*.swo
+
+# 临时文件
+*.tmp
+*.temp
+
+# 账单文件（敏感数据，不应提交）
+# 如果你在项目中放了示例账单，可以考虑添加：
+# *.pdf
+# *.csv
+# *.xlsx
+# bills/
+# downloads/
+
+# 日志文件
+*.log
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# 配置文件（保留 .env.example）
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+.directory
+*.orig
+
+# 7-Zip
+.venv.7z

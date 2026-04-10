@@ -1,0 +1,121 @@
+# 定义公共 CI 模板
+.ci-template: &ci-template
+  runner:
+    tags: cnb:arch:amd64
+    cpus: 8
+  docker:
+    build: .ide/Dockerfile
+    volumes:
+      - /root/.cache/uv
+  stages:
+    - name: Checks
+      jobs:
+        validate-title:
+          if: '[ -n "$CNB_PULL_REQUEST_TITLE" ]'
+          script: |
+            title="$CNB_PULL_REQUEST_TITLE"
+            if ! echo "$title" | grep -qE '^(feat|fix|docs|style|refactor|perf|test|chore|build|ci|revert|types|scope)(\(.+\))?!?: .+'; then
+              echo "❌ PR title 格式错误: $title"
+              echo "✅ 应为: <type>(<scope>): <subject>"
+              exit 1
+            fi
+            echo "✅ PR title 格式正确"
+        markdownlint:
+          script: markdownlint-cli2 "**/*.md"
+        ruff:
+          script: |
+            uv sync --extra llm --group dev
+            uv run ruff check --verbose
+            uv run ruff format --check --diff --verbose
+        uvlock:
+          script: |
+            uv lock
+            uv lock --check
+        basedpyright:
+          script: |
+            uv sync --extra llm --group dev
+            uv run basedpyright --verbose
+    - name: Test
+      script: |
+        uv sync --extra llm --group dev
+        uv run pytest --verbose
+
+# main 分支配置（数组形式）
+main:
+  pull_request:
+    - *ci-template
+
+# feat/ci 分支配置（数组形式）
+"feat/ci":
+  push:
+    - *ci-template
+  pull_request:
+    - *ci-template
+
+# 发布流水线（Tag 触发）
+"v*.*.*":
+  tag_push:
+    release:
+      runner:
+        tags: cnb:arch:amd64
+      docker:
+        image: python:3.12
+      stages:
+        - name: Build and Publish
+          script: |
+            pip install uv build twine
+            uv build
+            twine upload dist/*
+          env:
+            TWINE_USERNAME: __token__
+            TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+          artifacts:
+            - dist/
+
+# 云原生开发环境配置（数组形式）
+$:
+  vscode:
+    clouddev:
+      docker:
+        build: .ide/Dockerfile
+      runner:
+        tags: cnb:arch:amd64
+        cpus: 8
+      services:
+        - vscode
+        - docker
+      stages:
+        - name: Setup environment
+          script: |
+            set -e
+            cd /workspace
+
+            # 生成 .env（如果不存在）
+            if [ ! -f .env ]; then
+              cat > .env << "EOF"
+            export UV_LINK_MODE="copy"
+            export UV_INDEX_URL="https://mirrors.cloud.tencent.com/pypi/simple/"
+            export UV_CONCURRENT_DOWNLOADS=50
+            export UV_CACHE_DIR="${HOME}/.cache/uv"
+            export PROJECT_ROOT="/workspace"
+            EOF
+              echo "✅ 已创建 .env"
+            else
+              echo "⏭️ .env 已存在，跳过创建"
+            fi
+
+            # 自动加载 .env 到 ~/.zshrc
+            if ! grep -q "source /workspace/.env" ~/.zshrc; then
+              echo "" >> ~/.zshrc
+              echo "# Auto-load project environment" >> ~/.zshrc
+              echo "source /workspace/.env" >> ~/.zshrc
+              echo "✅ 已添加 .env 到 ~/.zshrc"
+            fi
+
+            # 加载当前会话环境变量
+            source .env
+
+            # 安装项目依赖
+            echo "📦 安装项目依赖（可能需要几分钟）..."
+            uv sync --all-extras --dev --link-mode=copy
+            echo "✅ 依赖安装完成"
