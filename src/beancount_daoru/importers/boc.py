@@ -1,7 +1,6 @@
-"""Bank of China (BOC) importer implementation.
+"""中国银行（BOC）导入器实现。
 
-This module provides an importer for Bank of China bill files that converts
-Bank of China transactions into Beancount entries.
+此模块提供了中国银行账单文件的导入器，用于将中国银行交易记录转换为 Beancount 条目。
 """
 
 import re
@@ -27,10 +26,26 @@ from beancount_daoru.utils import search_patterns
 
 
 def _amount_validator(v: str) -> Decimal:
+    """验证并转换金额字符串为 Decimal 类型。
+
+    参数：
+        v: 金额字符串
+
+    返回：
+        转换后的 Decimal 金额值
+    """
     return Decimal(v.replace(",", ""))
 
 
 def _validate_str(v: str | None) -> str | None:
+    """验证并清理字符串值。
+
+    参数：
+        v: 待验证的字符串
+
+    返回：
+        如果值为空或全为连字符则返回 None，否则返回清理后的值
+    """
     if v is None:
         return None
     v = v.replace("\n", "")
@@ -61,11 +76,10 @@ Record = TypedDict(
 
 
 class Parser(BaseParser):
-    """Parser for Bank of China transaction records.
+    """中国银行交易记录解析器。
 
-    Implements the Parser protocol to convert Bank of China transaction records
-    into Beancount-compatible structures. Handles BOC-specific fields and
-    logic for determining transaction amounts and directions.
+    实现 Parser 协议，将中国银行交易记录转换为 Beancount 兼容的数据结构。
+    处理中国银行特定的字段以及确定交易金额和方向的逻辑。
     """
 
     __validator = TypeAdapter(Record)
@@ -77,10 +91,23 @@ class Parser(BaseParser):
     @property
     @override
     def reversed(self) -> bool:
+        """是否需要反转记账方向。
+
+        返回：
+            中国银行需要反转记账方向，始终返回 True
+        """
         return True
 
     @override
     def extract_metadata(self, texts: Iterator[str]) -> Metadata:
+        """从文本中提取元数据。
+
+        参数：
+            texts: 文本行迭代器
+
+        返回：
+            包含账户和日期的元数据对象
+        """
         account_matches, date_matches = search_patterns(
             texts, self.__account_pattern, self.__date_pattern
         )
@@ -91,6 +118,14 @@ class Parser(BaseParser):
 
     @override
     def parse(self, record: dict[str, str]) -> Transaction:
+        """解析单条交易记录。
+
+        参数：
+            record: 原始交易记录字典
+
+        返回：
+            转换后的 Beancount 交易对象
+        """
         validated = self.__validator.validate_python(record)
         return Transaction(
             date=validated["记账日期"],
@@ -116,17 +151,16 @@ class Parser(BaseParser):
 
 
 class Importer(BaseImporter):
-    """Importer for Bank of China bill files.
+    """中国银行账单文件导入器。
 
-    Converts Bank of China transaction records into Beancount entries using
-    the Bank of China parser implementation.
+    使用中国银行解析器实现将中国银行交易记录转换为 Beancount 条目。
     """
 
     def __init__(self, **kwargs: Unpack[ImporterKwargs]) -> None:
-        """Initialize the Bank of China importer.
+        """初始化中国银行导入器。
 
-        Args:
-            **kwargs: Additional configuration parameters.
+        参数：
+            **kwargs: 额外的配置参数
         """
         super().__init__(
             re.compile(r"交易流水明细\d{14}\.pdf"),

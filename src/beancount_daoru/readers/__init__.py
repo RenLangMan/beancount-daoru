@@ -1,6 +1,5 @@
-"""Readers package for financial document formats.
+"""金融文档格式读取器包。
 
-This package contains reader implementations for various document formats
-commonly used by Chinese financial institutions. Each module provides
-functionality to read and parse specific file formats.
+此包包含了针对中国金融机构常用各种文档格式的读取器实现。
+每个模块提供了读取和解析特定文件格式的功能。
 """

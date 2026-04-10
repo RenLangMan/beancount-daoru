@@ -9,10 +9,21 @@ from beancount_daoru.importers.boc import Parser
 
 @pytest.fixture(scope="module")
 def parser() -> Parser:
+    """创建中国银行解析器实例。
+
+    返回：
+        中国银行解析器实例
+    """
     return Parser()
 
 
 def test_extract_metadata(parser: Parser) -> None:
+    """测试从中国银行账单中提取元数据。
+
+    验证解析器能够正确从账单文本中提取：
+        - 借记卡号（账户）
+        - 交易截止日期
+    """
     caption = (
         "中国银行交易流水明细清单\n"
         "交易区间： 2020-01-01 至2020-12-31 客户姓名： 张三 页数: 1 /1\n"
@@ -33,6 +44,7 @@ def test_extract_metadata(parser: Parser) -> None:
 
 PARSE_PARAMS_LIST = [
     (
+        # 测试场景1：结息交易
         {
             "记账日期": "2020-01-01",
             "记账时间": "10:00:00",
@@ -67,6 +79,7 @@ PARSE_PARAMS_LIST = [
         ),
     ),
     (
+        # 测试场景2：网上快捷支付（财付通交易）
         {
             "记账日期": "2020-01-02",
             "记账时间": "11:00:00",
@@ -110,4 +123,15 @@ PARSE_PARAMS_LIST = [
 def test_parse(
     parser: Parser, record: dict[str, str], transaction: Transaction
 ) -> None:
+    """测试解析中国银行交易记录。
+
+    使用参数化测试验证解析器能够正确处理各种交易类型：
+        - 结息交易（收入）
+        - 网上支付交易（支出）
+
+    参数：
+        parser: 中国银行解析器实例
+        record: 原始交易记录数据
+        transaction: 期望的解析结果
+    """
     assert parser.parse(record) == transaction

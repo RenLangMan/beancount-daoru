@@ -1,7 +1,6 @@
-"""Meituan importer implementation.
+"""美团导入器实现。
 
-This module provides an importer for Meituan bill files that converts
-Meituan transactions into Beancount entries.
+此模块提供了美团账单文件的导入器，用于将美团交易记录转换为 Beancount 条目。
 """
 
 import re
@@ -28,6 +27,14 @@ from beancount_daoru.utils import search_patterns
 
 
 def _validate_str(v: str | None) -> str | None:
+    """验证并清理字符串值。
+
+    参数：
+        v: 待验证的字符串
+
+    返回：
+        如果值为空或斜杠则返回 None，否则返回原值
+    """
     if v is None:
         return None
     if v in ("", "/"):
@@ -36,6 +43,14 @@ def _validate_str(v: str | None) -> str | None:
 
 
 def _split_amount(v: str) -> tuple[str, str]:
+    """拆分金额字符串，分离币种符号和数值。
+
+    参数：
+        v: 包含币种符号的金额字符串，如 "¥100.00"
+
+    返回：
+        (币种符号, 金额数值字符串) 元组
+    """
     return v[0], v[1:]
 
 
@@ -58,11 +73,10 @@ Record = TypedDict(
 
 
 class Parser(BaseParser):
-    """Parser for Meituan transaction records.
+    """美团交易记录解析器。
 
-    Implements the Parser protocol to convert Meituan transaction records
-    into Beancount-compatible structures. Handles Meituan-specific fields and
-    logic for determining transaction amounts and directions.
+    实现 Parser 协议，将美团交易记录转换为 Beancount 兼容的数据结构。
+    处理美团特定的字段以及确定交易金额和方向的逻辑。
     """
 
     __validator = TypeAdapter(Record)
@@ -72,10 +86,23 @@ class Parser(BaseParser):
     @property
     @override
     def reversed(self) -> bool:
+        """是否需要反转记账方向。
+
+        返回：
+            美团需要反转记账方向，始终返回 True
+        """
         return True
 
     @override
     def extract_metadata(self, texts: Iterator[str]) -> Metadata:
+        """从文本中提取元数据。
+
+        参数：
+            texts: 文本行迭代器
+
+        返回：
+            包含账户和日期的元数据对象
+        """
         account_matches, date_matches = search_patterns(
             texts, self.__account_pattern, self.__date_pattern
         )
@@ -86,6 +113,17 @@ class Parser(BaseParser):
 
     @override
     def parse(self, record: dict[str, str]) -> Transaction:
+        """解析单条交易记录。
+
+        参数：
+            record: 原始交易记录字典
+
+        返回：
+            转换后的 Beancount 交易对象
+
+        异常：
+            ParserError: 当无法识别交易类型或收支类型时抛出
+        """
         validated = self.__validator.validate_python(record)
         return Transaction(
             date=validated["交易成功时间"].date(),
@@ -101,6 +139,17 @@ class Parser(BaseParser):
         )
 
     def _parse_postings(self, validated: Record) -> Iterator[Posting]:
+        """解析记账分录。
+
+        参数：
+            validated: 验证后的交易记录
+
+        返回：
+            记账分录迭代器
+
+        异常：
+            ParserError: 当无法解析对方账户时抛出
+        """
         amount = self._parse_amount(validated)
         currency = validated["实付金额"][0]
 
@@ -119,6 +168,19 @@ class Parser(BaseParser):
             )
 
     def _parse_amount(self, validated: Record) -> Decimal:
+        """解析交易金额和方向。
+
+        根据收支类型判断金额的正负号。
+
+        参数：
+            validated: 验证后的交易记录
+
+        返回：
+            带正负号的金额值
+
+        异常：
+            ParserError: 当遇到无法识别的收支类型时抛出
+        """
         dc_key = "收/支"
 
         match validated[dc_key]:
@@ -130,6 +192,19 @@ class Parser(BaseParser):
                 raise ParserError(dc_key)
 
     def _parse_counter_party(self, validated: Record) -> str | None:
+        """解析对方账户。
+
+        根据交易类型和订单标题判断对方账户。
+
+        参数：
+            validated: 验证后的交易记录
+
+        返回：
+            对方账户名称，如果无对方账户则返回 None
+
+        异常：
+            ParserError: 当遇到无法识别的交易组合时抛出
+        """
         type_key = "交易类型"
         narration_key = "订单标题"
 
@@ -143,17 +218,16 @@ class Parser(BaseParser):
 
 
 class Importer(BaseImporter):
-    """Importer for Meituan bill files.
+    """美团账单文件导入器。
 
-    Converts Meituan transaction records into Beancount entries using
-    the Meituan extractor and builder implementations.
+    使用美团解析器实现将美团交易记录转换为 Beancount 条目。
     """
 
     def __init__(self, **kwargs: Unpack[ImporterKwargs]) -> None:
-        """Initialize the Meituan importer.
+        """初始化美团导入器。
 
-        Args:
-            **kwargs: Additional configuration parameters.
+        参数：
+            **kwargs: 额外的配置参数
         """
         super().__init__(
             re.compile(r"美团账单\(\d{8}-\d{8}\)\.csv"),

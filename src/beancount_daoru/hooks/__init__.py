@@ -1,6 +1,5 @@
-"""Hooks package for post-processing imported Beancount entries.
+"""Beancount 导入条目后处理钩子包。
 
-This package contains hook implementations for post-processing imported
-Beancount entries. Hooks allow customization of imported entries before
-final output.
+本包提供了导入 Beancount 条目后的后处理钩子实现。
+通过钩子，用户可以在最终输出之前对导入的条目进行自定义处理。
 """

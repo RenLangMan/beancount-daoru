@@ -9,10 +9,22 @@ from beancount_daoru.importers.bocom import Parser
 
 @pytest.fixture(scope="module")
 def parser() -> Parser:
+    """创建交通银行解析器实例。
+
+    返回：
+        交通银行解析器实例
+    """
     return Parser()
 
 
 def test_extract_metadata(parser: Parser) -> None:
+    """测试从交通银行账单中提取元数据。
+
+    验证解析器能够正确从账单文本中提取：
+        - 账号/卡号（账户）
+        - 查询截止日期
+        - 币种信息
+    """
     caption = (
         "交通银行个人客户交易清单\n"
         "Bocom Personal Account Details\n"
@@ -41,6 +53,7 @@ def test_extract_metadata(parser: Parser) -> None:
 
 TEST_PARAMS_LIST = [
     (
+        # 测试场景1：存款利息收入（贷方交易）
         {
             "Serial\nNum\n序号": "1",
             "Trans Date\n交易日期": "2020-01-01",
@@ -60,10 +73,10 @@ TEST_PARAMS_LIST = [
                 time=datetime.time(10, 0, 0),
                 dc="贷 Cr",
                 type="存款利息",
-                payee_account="123456789012345123",
+                payee_account="123456789012345123",  # 注意：换行符已被清理
                 place="批处理",
             ),
-            payee="应付个人活期储蓄存款利息",
+            payee="应付个人活期储蓄存款利息",  # 注意：换行符已被清理
             postings=(
                 Posting(
                     amount=Decimal("1.00"),
@@ -75,6 +88,7 @@ TEST_PARAMS_LIST = [
         ),
     ),
     (
+        # 测试场景2：网上支付消费（借方交易）
         {
             "Serial\nNum\n序号": "2",
             "Trans Date\n交易日期": "2020-01-02",
@@ -96,7 +110,7 @@ TEST_PARAMS_LIST = [
         },
         Transaction(
             date=datetime.date(2020, 1, 2),
-            payee="支付宝（中国）网络技术有限公司",
+            payee="支付宝（中国）网络技术有限公司",  # 注意：换行符已被清理
             narration=(
                 "网上支付 其他商家消费 订单编号20200102110123456123456789012345"
                 "柒一拾壹（天津）商业有限公 交易流水号2020010212345678912345678901234"
@@ -125,17 +139,29 @@ TEST_PARAMS_LIST = [
 def test_build(
     parser: Parser, record: dict[str, str], transaction: Transaction
 ) -> None:
+    """测试解析交通银行交易记录。
+
+    使用参数化测试验证解析器能够正确处理各种交易类型：
+        - 存款利息收入（贷方交易，正金额）
+        - 网上支付消费（借方交易，负金额）
+
+    参数：
+        parser: 交通银行解析器实例
+        record: 原始交易记录数据
+        transaction: 期望的解析结果
+    """
     assert parser.parse(record) == transaction
 
 
 ERROR_PARAMS_LIST = [
     (
+        # 错误场景：未识别的借贷标志
         {
             "Serial\nNum\n序号": "3",
             "Trans Date\n交易日期": "2020-01-03",
             "Trans Time\n交易时间": "12:00:00",
             "Trading Type\n交易类型": "其他交易",
-            "Dc Flg\n借贷": "",
+            "Dc Flg\n借贷": "",  # 空的借贷标志，无法识别
             "Trans Amt\n交易金额": "5.00",
             "Balance\n余额": "985.00",
             "Payment Receipt\nAccount\n对方账号": "123456789012345",
@@ -153,6 +179,15 @@ ERROR_PARAMS_LIST = [
 
 @pytest.mark.parametrize(("record", "message"), ERROR_PARAMS_LIST)
 def test_parse_error(parser: Parser, record: dict[str, str], message: str) -> None:
+    """测试解析器对错误交易记录的处理。
+
+    验证当遇到无法识别的交易数据时，解析器能够正确抛出 ParserError 异常。
+
+    参数：
+        parser: 交通银行解析器实例
+        record: 包含错误数据的交易记录
+        message: 期望的异常消息
+    """
     with pytest.raises(ParserError) as excinfo:
         _ = parser.parse(record)
     assert str(excinfo.value) == message

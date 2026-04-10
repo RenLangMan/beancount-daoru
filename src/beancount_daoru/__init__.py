@@ -1,8 +1,7 @@
-"""Beancount importers for Chinese financial institutions.
+"""中国金融机构的 Beancount 导入器。
 
-This package provides importers for various Chinese financial institutions and
-payment platforms, allowing users to easily convert their financial records
-into Beancount format for accounting purposes.
+此包为各种中国金融机构和支付平台提供导入器，
+让用户能够轻松地将他们的财务记录转换为 Beancount 格式用于会计目的。
 """
 
 from beancount_daoru.hooks.path_to_name import Hook as PathToName
@@ -25,7 +24,7 @@ __all__ = [
     "WechatImporter",
 ]
 
-# Optional components - will only be available if dependencies are installed
+# 可选组件 - 仅在安装了依赖时可用
 try:
     from beancount_daoru.hooks.predict_missing_posting import (
         Hook as PredictMissingPosting,

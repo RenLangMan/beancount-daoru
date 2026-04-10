@@ -1,7 +1,6 @@
-"""Alipay importer implementation.
+"""支付宝导入器实现。
 
-This module provides an importer for Alipay bill files that converts
-Alipay transactions into Beancount entries.
+此模块提供了支付宝账单文件的导入器，用于将支付宝交易记录转换为 Beancount 条目。
 """
 
 import re
@@ -28,6 +27,14 @@ from beancount_daoru.utils import search_patterns
 
 
 def _validate_str(v: str | None) -> str | None:
+    """验证并清理字符串值。
+
+    参数：
+        v: 待验证的字符串
+
+    返回：
+        如果值为空或斜杠则返回 None，否则返回原值
+    """
     if v is None:
         return None
     if v in ("", "/"):
@@ -56,11 +63,10 @@ Record = TypedDict(
 
 
 class Parser(BaseParser):
-    """Parser for Alipay transaction records.
+    """支付宝交易记录解析器。
 
-    Implements the Parser protocol to convert Alipay transaction records
-    into Beancount-compatible structures. Handles Alipay-specific fields
-    and logic for determining transaction amounts and directions.
+    实现 Parser 协议，将支付宝交易记录转换为 Beancount 兼容的数据结构。
+    处理支付宝特定的字段以及确定交易金额和方向的逻辑。
     """
 
     __validator = TypeAdapter(Record)
@@ -72,10 +78,23 @@ class Parser(BaseParser):
     @property
     @override
     def reversed(self) -> bool:
+        """是否需要反转记账方向。
+
+        返回：
+            支付宝需要反转记账方向，始终返回 True
+        """
         return True
 
     @override
     def extract_metadata(self, texts: Iterator[str]) -> Metadata:
+        """从文本中提取元数据。
+
+        参数：
+            texts: 文本行迭代器
+
+        返回：
+            包含账户和日期的元数据对象
+        """
         account_matches, date_matches = search_patterns(
             texts, self.__account_pattern, self.__date_pattern
         )
@@ -86,6 +105,17 @@ class Parser(BaseParser):
 
     @override
     def parse(self, record: dict[str, str]) -> Transaction:
+        """解析单条交易记录。
+
+        参数：
+            record: 原始交易记录字典
+
+        返回：
+            转换后的 Beancount 交易对象
+
+        异常：
+            ParserError: 当无法识别交易类型时抛出
+        """
         validated = self.__validator.validate_python(record)
         postings = ()
         if amount_and_payee := self._parse_amount(validated):
@@ -118,7 +148,22 @@ class Parser(BaseParser):
             postings=postings,
         )
 
-    def _parse_amount(self, validated: Record) -> tuple[Decimal, str | None] | None:  # noqa: PLR0911
+    def _parse_amount(
+        self, validated: Record
+    ) -> tuple[Decimal, str | None] | None:  # noqa: PLR0911
+        """解析交易金额和方向。
+
+        根据收支类型和交易状态判断金额的正负号以及是否生成对手方记账。
+
+        参数：
+            validated: 验证后的交易记录
+
+        返回：
+            (金额, 对手方账户) 元组，如果无需生成记账则返回 None
+
+        异常：
+            ParserError: 当遇到无法识别的交易组合时抛出
+        """
         dc_key = "收/支"
         status_key = "交易状态"
         desc_key = "商品说明"
@@ -151,17 +196,16 @@ class Parser(BaseParser):
 
 
 class Importer(BaseImporter):
-    """Importer for Alipay bill files.
+    """支付宝账单文件导入器。
 
-    Converts Alipay transaction records into Beancount entries using the Alipay
-    parser implementation.
+    使用支付宝解析器实现将支付宝交易记录转换为 Beancount 条目。
     """
 
     def __init__(self, **kwargs: Unpack[ImporterKwargs]) -> None:
-        """Initialize the Alipay importer.
+        """初始化支付宝导入器。
 
-        Args:
-            **kwargs: Additional configuration parameters.
+        参数：
+            **kwargs: 额外的配置参数
         """
         super().__init__(
             re.compile(r"支付宝交易明细\(\d{8}-\d{8}\).csv"),

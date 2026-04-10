@@ -1,9 +1,7 @@
-"""Main importer module for converting extracted records to Beancount entries.
+"""将提取的记录转换为 Beancount 条目的主导入器模块。
 
-This module provides the core importer functionality that bridges extracted
-financial records with the Beancount accounting system. It handles conversion
-of records to Beancount transactions, account mapping, currency conversion,
-and integration with the Beangulp framework.
+此模块提供了核心导入器功能，作为提取的财务记录与 Beancount 会计系统之间的桥梁。
+它负责将记录转换为 Beancount 交易、账户映射、货币转换以及与 Beangulp 框架的集成。
 """
 
 import datetime
@@ -25,20 +23,19 @@ from beancount_daoru.reader import Reader
 
 
 class Extra(NamedTuple):
-    """Extra transaction metadata.
+    """交易的额外元数据。
 
-    Additional metadata associated with a financial transaction that doesn't
-    fit into the standard fields of a transaction. These fields provide
-    additional context for categorization, reconciliation, and reporting.
+    与金融交易相关联的额外元数据，这些数据不属于交易的标准字段。
+    这些字段为分类、对账和报告提供额外的上下文信息。
 
-    Attributes:
-        time: Time of the transaction.
-        dc: Debit/Credit indicator (e.g., "收入" for income, "支出" for expense).
-        type: Transaction type or category.
-        payee_account: Account information of the counterparty.
-        status: Status of the transaction (e.g., successful, pending, failed).
-        place: Location or place of the transaction.
-        remarks: Additional remarks or notes about the transaction.
+    属性：
+        time: 交易时间。
+        dc: 借贷方向标识（例如："收入"表示收入，"支出"表示支出）。
+        type: 交易类型或类别。
+        payee_account: 对手方的账户信息。
+        status: 交易状态（例如：成功、处理中、失败）。
+        place: 交易地点或场所。
+        remarks: 关于交易的额外备注或说明。
     """
 
     time: datetime.time | None = None
@@ -51,16 +48,15 @@ class Extra(NamedTuple):
 
 
 class Posting(NamedTuple):
-    """A posting in a Beancount transaction.
+    """Beancount 交易中的一笔记账分录。
 
-    Represents a single leg of a transaction with an amount, account, and optional
-    currency information. In double-entry bookkeeping, a transaction typically
-    consists of two or more postings whose amounts sum to zero.
+    表示交易中的一个单腿记录，包含金额、账户和可选的货币信息。
+    在复式记账中，一笔交易通常由两个或多个金额之和为零的记账分录组成。
 
-    Attributes:
-        amount: The monetary amount of the posting.
-        account: The account affected by this posting.
-        currency: The currency of the amount (optional, may be inferred from context).
+    属性：
+        amount: 记账分录的货币金额。
+        account: 受此记账分录影响的账户。
+        currency: 金额的货币类型（可选，可从上下文中推断）。
     """
 
     amount: Decimal
@@ -69,19 +65,18 @@ class Posting(NamedTuple):
 
 
 class Transaction(NamedTuple):
-    """A financial transaction with Beancount-compatible structure.
+    """具有 Beancount 兼容结构的金融交易。
 
-    Represents a complete financial transaction with date, payee, narration,
-    and one or more postings. This structure serves as an intermediate
-    representation between source data formats and Beancount entries.
+    表示一笔完整的金融交易，包含日期、收款方、说明和一个或多个记账分录。
+    此结构作为源数据格式与 Beancount 条目之间的中间表示。
 
-    Attributes:
-        date: Date of the transaction.
-        extra: Additional metadata about the transaction.
-        payee: The entity the transaction is with (e.g., vendor, recipient).
-        narration: Description or memo of the transaction.
-        postings: The postings that make up this transaction.
-        balance: Optional balance information for account reconciliation.
+    属性：
+        date: 交易日期。
+        extra: 关于交易的额外元数据。
+        payee: 交易对方实体（例如：商家、收款人）。
+        narration: 交易的描述或备注。
+        postings: 组成此交易的记账分录。
+        balance: 用于账户对账的可选余额信息。
     """
 
     date: datetime.date
@@ -93,16 +88,15 @@ class Transaction(NamedTuple):
 
 
 class Metadata(NamedTuple):
-    """Metadata extracted from a financial document.
+    """从金融文档中提取的元数据。
 
-    Contains information about the source document such as account identifier
-    and statement period. This metadata is used to properly categorize and
-    process transactions from the document.
+    包含源文档的相关信息，如账户标识符和账单周期。
+    这些元数据用于正确分类和处理文档中的交易。
 
-    Attributes:
-        account: Account identifier extracted from the document.
-        date: Date associated with the document (often statement date).
-        currency: Default currency for transactions in the document.
+    属性：
+        account: 从文档中提取的账户标识符。
+        date: 与文档关联的日期（通常是账单日期）。
+        currency: 文档中交易的默认货币。
     """
 
     account: str | None
@@ -111,93 +105,90 @@ class Metadata(NamedTuple):
 
 
 class ParserError(Exception):
-    """Exception raised when parsing fails."""
+    """解析失败时抛出的异常。"""
 
     def __init__(self, *fields: str) -> None:
-        """Initialize ParserError exception.
+        """初始化 ParserError 异常。
 
-        Args:
-            *fields: Tuple of unsupported field names that caused the parsing failure.
+        参数：
+            *fields: 导致解析失败的未支持字段名的元组。
         """
         msg = f"unsupported value combination of fields: {fields!r}"
         super().__init__(msg)
 
 
 class Parser(Protocol):
-    """Interface for parsing financial transaction records.
+    """金融交易记录解析器接口。
 
-    Defines the protocol that all parser implementations must follow to convert
-    source transaction records into Beancount-compatible structures. Each specific
-    importer (Alipay, WeChat, etc.) must implement this protocol.
+    定义了所有解析器实现必须遵循的协议，用于将源交易记录转换为
+    Beancount 兼容的数据结构。每个具体的导入器（支付宝、微信等）
+    都必须实现此协议。
     """
 
     @property
     def reversed(self) -> bool:
-        """Indicates if the source records are in reverse chronological order.
+        """指示源记录是否为逆时间顺序排列。
 
-        Returns:
-            True if records are in reverse chronological order, False otherwise.
+        返回：
+            如果记录为逆时间顺序返回 True，否则返回 False。
         """
         return False
 
     def extract_metadata(self, texts: Iterator[str]) -> Metadata:
-        """Extract metadata from text iterator.
+        """从文本迭代器中提取元数据。
 
-        Parses the input text to extract document-level metadata such as account
-        identifier and statement date. This information is used to properly
-        categorize and process transactions from the document.
+        解析输入文本以提取文档级别的元数据，如账户标识符和账单日期。
+        这些信息用于正确分类和处理文档中的交易。
 
-        Args:
-            texts: Iterator over lines of text from the source document.
+        参数：
+            texts: 源文档文本行的迭代器。
 
-        Returns:
-            Metadata object containing extracted information.
+        返回：
+            包含提取信息的元数据对象。
         """
         ...
 
     def parse(self, record: dict[str, str]) -> Transaction:
-        """Parse a single transaction record into a Beancount-compatible structure.
+        """将单条交易记录解析为 Beancount 兼容结构。
 
-        Converts a dictionary representation of a single transaction record from
-        the source format into a standardized Transaction object that can be
-        processed into Beancount entries.
+        将源格式中的单条交易记录的字典表示转换为标准化的
+        Transaction 对象，该对象可进一步处理为 Beancount 条目。
 
-        Args:
-            record: Dictionary representing a single transaction record with
-                keys and values as they appear in the source document.
+        参数：
+            record: 表示单条交易记录的字典，键和值为源文档中的原始内容。
 
-        Raises:
-            ParserError: If the record contains unsupported value combinations.
+        异常：
+            ParserError: 如果记录包含未支持的值组合。
 
-        Returns:
-            Transaction object with the parsed data in a Beancount-compatible format.
+        返回：
+            包含解析后数据的 Transaction 对象，格式与 Beancount 兼容。
         """
         ...
 
 
 class ImporterKwargs(TypedDict):
-    """Configuration parameters for the Importer class.
+    """Importer 类的配置参数。
 
-    Attributes:
-        account_mapping: Nested dict mapping source account info and transaction types
-            to Beancount accounts. Structure:
-            - 1st-level key: Source account name (e.g., payment app user account)
-            - 2nd-level key: Payment method (e.g., "余额", "花呗")
-            - Special key None: Default archival folder account for the source
+    属性：
+        account_mapping: 嵌套字典，将源账户信息和交易类型映射到
+            Beancount 账户。结构：
+            - 第1级键：源账户名称（例如：支付应用的用户账户）
+            - 第2级键：支付方式（例如："余额"、"花呗"）
+            - 特殊键 None：该源的默认归档文件夹账户
 
-    Example:
-                {
-                    "user@example.com": {
-                        None: "Assets:Alipay",  # Archival folder account
-                        "余额": "Assets:Alipay:Balance",
-                        "花呗": "Liabilities:Huabei"
-                    }
+        示例：
+            {
+                "user@example.com": {
+                    None: "Assets:Alipay",  # 归档文件夹账户
+                    "余额": "Assets:Alipay:Balance",
+                    "花呗": "Liabilities:Huabei"
                 }
-            `account_mapping["user@example.com"][None]` maps to the "Assets/Alipay"
-            folder used for archival purposes.
+            }
+            `account_mapping["user@example.com"][None]` 映射到用于归档的
+            "Assets/Alipay" 文件夹。
 
-        currency_mapping: Mapping of source currency identifiers to Beancount currency
-            codes (e.g., {"RMB": "CNY", "USD": "USD"}).
+        currency_mapping: 源货币标识符到 Beancount 货币代码的映射
+            （例如：{"RMB": "CNY", "USD": "USD"}）。
     """
 
     account_mapping: Mapping[str | None, Mapping[str | None, beancount.Account]]
@@ -205,10 +196,10 @@ class ImporterKwargs(TypedDict):
 
 
 class Importer(beangulp.Importer):
-    """Main importer class that integrates with Beangulp.
+    """与 Beangulp 集成的主导入器类。
 
-    This class implements the Beangulp Importer interface and orchestrates
-    the conversion of financial documents to Beancount entries.
+    此类实现 Beangulp Importer 接口，并协调将金融文档
+    转换为 Beancount 条目的完整流程。
     """
 
     def __init__(
@@ -219,17 +210,16 @@ class Importer(beangulp.Importer):
         /,
         **kwargs: Unpack[ImporterKwargs],
     ) -> None:
-        """Initialize the Importer.
+        """初始化导入器。
 
-        Sets up the importer with filename pattern matching, reader for extracting
-        records from files, parser for converting records to transactions, and
-        mappings for account and currency translation.
+        设置导入器的文件名模式匹配、用于从文件提取记录的读取器、
+        将记录转换为交易的解析器，以及账户和货币转换的映射。
 
-        Args:
-            filename: Pattern to match against filenames for identification.
-            reader: Reader instance for extracting records from files.
-            parser: Parser instance for converting records to transactions.
-            **kwargs: Additional configuration including account and currency mappings.
+        参数：
+            filename: 用于识别文件的文件名匹配模式。
+            reader: 用于从文件提取记录的读取器实例。
+            parser: 用于将记录转换为交易的解析器实例。
+            **kwargs: 额外配置，包括账户和货币映射。
         """
         self.__filename_pattern = filename
         self.__reader = reader
@@ -239,18 +229,50 @@ class Importer(beangulp.Importer):
 
     @override
     def identify(self, filepath: str) -> bool:
+        """识别文件是否由此导入器处理。
+
+        参数：
+            filepath: 文件路径
+
+        返回：
+            如果文件名匹配模式则返回 True，否则返回 False
+        """
         return self.__filename_pattern.fullmatch(Path(filepath).name) is not None
 
     @override
     def account(self, filepath: str) -> str:
+        """返回文件对应的归档账户。
+
+        参数：
+            filepath: 文件路径
+
+        返回：
+            归档账户名称
+        """
         return self._analyse_account(self._cached_metadata(filepath))
 
     @override
     def date(self, filepath: str) -> datetime.date | None:
+        """返回文件对应的日期。
+
+        参数：
+            filepath: 文件路径
+
+        返回：
+            从文件元数据中提取的日期
+        """
         return self._cached_metadata(filepath).date
 
     @override
     def filename(self, filepath: str) -> str:
+        """返回文件名。
+
+        参数：
+            filepath: 文件路径
+
+        返回：
+            不带路径的文件名
+        """
         return Path(filepath).name
 
     @override
@@ -259,6 +281,15 @@ class Importer(beangulp.Importer):
         filepath: str,
         existing: beancount.Directives,
     ) -> beancount.Directives:
+        """从文件中提取 Beancount 条目。
+
+        参数：
+            filepath: 文件路径
+            existing: 现有的 Beancount 指令（用于去重）
+
+        返回：
+            提取的 Beancount 指令列表
+        """
         metadata = self._cached_metadata(filepath)
         directives: list[beancount.Directive] = []
         for index, record in enumerate(self.__reader.read_records(Path(filepath))):
@@ -269,6 +300,12 @@ class Importer(beangulp.Importer):
     def deduplicate(
         self, entries: beancount.Directives, existing: beancount.Directives
     ) -> None:
+        """对条目进行去重处理。
+
+        参数：
+            entries: 待去重的条目列表
+            existing: 现有的 Beancount 条目
+        """
         balances = sorted(
             (e for e in entries if isinstance(e, beancount.Balance)),
             key=attrgetter("date"),
@@ -284,6 +321,12 @@ class Importer(beangulp.Importer):
 
     @override
     def sort(self, entries: beancount.Directives, reverse: bool = False) -> None:
+        """对条目进行排序。
+
+        参数：
+            entries: 待排序的条目列表
+            reverse: 是否反向排序
+        """
         def sort_key(entry: beancount.Directive) -> tuple[int, int]:
             lineno = entry.meta["lineno"]  # pyright: ignore[reportAny]
             return (
@@ -294,10 +337,26 @@ class Importer(beangulp.Importer):
         entries.sort(key=sort_key, reverse=reverse)
 
     def _lineno_key(self, lineno: int) -> int:
+        """生成行号排序键。
+
+        参数：
+            lineno: 行号
+
+        返回：
+            根据解析器的 reversed 属性调整后的排序键
+        """
         return -lineno if self.__parser.reversed else lineno
 
     @lru_cache(maxsize=1)  # noqa: B019
     def _cached_metadata(self, filepath: str) -> Metadata:
+        """缓存文件的元数据。
+
+        参数：
+            filepath: 文件路径
+
+        返回：
+            文件的元数据对象
+        """
         return self.__parser.extract_metadata(
             self.__reader.read_captions(Path(filepath))
         )
@@ -309,6 +368,17 @@ class Importer(beangulp.Importer):
         metadata: Metadata,
         record: dict[str, str],
     ) -> Iterator[beancount.Directive]:
+        """提取单条记录并转换为 Beancount 指令。
+
+        参数：
+            filepath: 文件路径
+            lineno: 行号
+            metadata: 文件元数据
+            record: 原始记录数据
+
+        返回：
+            Beancount 指令迭代器
+        """
         try:
             transaction = self.__parser.parse(record)
         except ParserError as e:
@@ -372,6 +442,17 @@ class Importer(beangulp.Importer):
         record: dict[str, str],
         **meta: object | None,
     ) -> dict[str, str]:
+        """构建 Beancount 条目的元数据字典。
+
+        参数：
+            filepath: 文件路径
+            lineno: 行号
+            record: 原始记录
+            **meta: 额外的元数据
+
+        返回：
+            元数据字典
+        """
         return beancount.new_metadata(
             self.filename(filepath),
             lineno,
@@ -390,6 +471,18 @@ class Importer(beangulp.Importer):
         metadata: Metadata,
         posting: Posting | None = None,
     ) -> beancount.Account:
+        """分析并映射账户名称。
+
+        参数：
+            metadata: 文件元数据
+            posting: 记账分录（可选）
+
+        返回：
+            映射后的 Beancount 账户
+
+        异常：
+            KeyError: 当账户未配置映射时抛出
+        """
         if metadata.account not in self.__account_mappings:
             msg = f"account is not mapped: {metadata.account!r}"
             raise KeyError(msg)
@@ -402,6 +495,18 @@ class Importer(beangulp.Importer):
         return account_submapping[posting_account]
 
     def _analyse_amount(self, metadata: Metadata, posting: Posting) -> beancount.Amount:
+        """分析并转换金额和货币。
+
+        参数：
+            metadata: 文件元数据
+            posting: 记账分录
+
+        返回：
+            Beancount 金额对象
+
+        异常：
+            KeyError: 当货币未配置映射时抛出
+        """
         currency_name = posting.currency
         if currency_name is None:
             currency_name = metadata.currency

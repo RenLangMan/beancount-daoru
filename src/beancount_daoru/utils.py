@@ -1,7 +1,7 @@
-"""Utility functions for the beancount_daoru package.
+"""beancount_daoru 包的实用工具函数。
 
-This module contains various utility functions that are used across different
-parts of the beancount_daoru package to perform common operations.
+此模块包含在 beancount_daoru 包的不同部分中使用的各种实用工具函数，
+用于执行常见的操作。
 """
 
 import itertools
@@ -12,24 +12,32 @@ from collections.abc import Iterator
 def search_patterns(
     texts: Iterator[str], *patterns: re.Pattern[str]
 ) -> tuple[Iterator[re.Match[str]], ...]:
-    """Search for multiple regex patterns in text iterator.
+    """在文本迭代器中搜索多个正则表达式模式。
 
-    This function efficiently searches for multiple regex patterns in an iterator
-    of text strings by creating separate copies of the iterator for each pattern,
-    avoiding the need to traverse the iterator multiple times.
+    此函数通过为每个模式创建文本迭代器的独立副本，高效地在文本字符串迭代器中
+    搜索多个正则表达式模式，避免多次遍历迭代器。
 
-    Args:
-        texts: An iterator of text strings to search in.
-        *patterns: Variable number of compiled regex patterns to search for.
+    参数：
+        texts: 要搜索的文本字符串迭代器。
+        *patterns: 要搜索的多个编译后的正则表达式模式。
 
-    Returns:
-        A tuple of iterators, each containing matches for the corresponding pattern.
-        The order of iterators matches the order of patterns provided.
+    返回：
+        迭代器的元组，每个迭代器包含对应模式的匹配结果。
+        迭代器的顺序与提供的模式顺序一致。
     """
 
     def _find_all(
         text_iter: Iterator[str], pattern: re.Pattern[str]
     ) -> Iterator[re.Match[str]]:
+        """在文本迭代器中查找所有匹配项。
+
+        参数：
+            text_iter: 文本字符串迭代器
+            pattern: 编译后的正则表达式模式
+
+        返回：
+            所有匹配结果的迭代器
+        """
         for text in text_iter:
             yield from pattern.finditer(text)
 

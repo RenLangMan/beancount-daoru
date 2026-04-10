@@ -1,8 +1,7 @@
-"""Hook system for post-processing imported Beancount entries.
+"""导入的 Beancount 条目后处理钩子系统。
 
-This module defines the hook interface that allows post-processing of imported
-entries, enabling features like account prediction, path normalization, and
-other transformations before final output.
+此模块定义了钩子接口，允许对导入的条目进行后处理，
+在最终输出前实现科目预测、路径标准化和其他转换功能。
 """
 
 from typing import Protocol
@@ -15,22 +14,22 @@ Imported = tuple[Filename, Directives, Account, Importer]
 
 
 class Hook(Protocol):
-    """Protocol defining the interface for import hooks.
+    """定义导入钩子接口的协议。
 
-    Hooks are called after initial import but before final output,
-    allowing customization of the imported entries.
+    钩子在初始导入之后、最终输出之前被调用，
+    允许对导入的条目进行自定义处理。
     """
 
     def __call__(
         self, imported: list[Imported], existing: Directives
     ) -> list[Imported]:
-        """Process imported entries.
+        """处理导入的条目。
 
-        Args:
-            imported: List of imported entries.
-            existing: Existing Beancount entries.
+        参数：
+            imported: 导入的条目列表
+            existing: 现有的 Beancount 条目
 
-        Returns:
-            Processed list of imported entries.
+        返回：
+            处理后的导入条目列表
         """
         ...

@@ -1,8 +1,7 @@
-"""Base module for reading financial documents.
+"""读取金融文档的基础模块。
 
-This module defines the base Reader class that provides a common interface
-for reading various document formats (PDF, Excel, etc.) and converting them
-into structured data that can be processed by extractors.
+此模块定义了基础 Reader 类，为读取各种文档格式（PDF、Excel 等）
+并将其转换为可供提取器处理的结构化数据提供通用接口。
 """
 
 from collections.abc import Iterator
@@ -11,33 +10,33 @@ from typing import Protocol
 
 
 class Reader(Protocol):
-    """Abstract base class for document readers.
+    """文档读取器的抽象基类。
 
-    Readers are responsible for parsing raw document files (PDF, Excel, etc.)
-    into structured dictionaries that can be validated and converted to typed records.
+    读取器负责将原始文档文件（PDF、Excel 等）解析为结构化的字典，
+    这些字典可以被验证并转换为类型化的记录。
     """
 
     def read_captions(
         self,
         file: Path,
     ) -> Iterator[str]:
-        """Read caption/header text from the file.
+        """从文件中读取标题/页眉文本。
 
-        Args:
-            file: Path to the file to read.
+        参数：
+            file: 要读取的文件路径。
 
-        Yields:
-            Strings of caption text.
+        返回：
+            标题文本字符串的迭代器。
         """
         ...
 
     def read_records(self, file: Path) -> Iterator[dict[str, str]]:
-        """Read records as dictionaries from the file.
+        """从文件中读取字典形式的记录。
 
-        Args:
-            file: Path to the file to read.
+        参数：
+            file: 要读取的文件路径。
 
-        Yields:
-            Dictionaries representing individual records.
+        返回：
+            表示单条记录的字典迭代器。
         """
         ...
