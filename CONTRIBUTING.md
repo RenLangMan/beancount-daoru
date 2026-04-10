@@ -49,7 +49,7 @@ uv run ruff check .
 uv run ruff format .
 
 # 类型检查
-uv run pyright
+uv run basedpyright
 ```
 
 ### 运行测试
