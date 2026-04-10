@@ -1,200 +1,668 @@
 #!/bin/bash
-# scripts/dev.sh - 开发环境管理脚本（跨平台）
+# scripts/dev.sh - 完整的开发环境管理脚本（一站式开发流水线）
 
 set -e
 
-# 颜色定义
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
+# ==================== 颜色定义 ====================
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
+NC='\033[0m'
+
 print_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 print_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 print_success() { echo -e "${GREEN}✅${NC} $1"; }
+print_step() { echo -e "${CYAN}▶${NC} $1"; }
+print_title() { echo -e "\n${MAGENTA}════════════════════════════════════════════════════════${NC}"; echo -e "${MAGENTA}  $1${NC}"; echo -e "${MAGENTA}════════════════════════════════════════════════════════${NC}\n"; }
 
-# 检测操作系统
+# ==================== 检测操作系统 ====================
 case "$OSTYPE" in
     msys*|cygwin*|win32*|mingw*)
         IS_WINDOWS=true
         VENV_BIN="Scripts"
+        PYTHON_EXE="python.exe"
         ;;
     *)
         IS_WINDOWS=false
         VENV_BIN="bin"
+        PYTHON_EXE="python"
         ;;
 esac
 
+# ==================== 路径设置 ====================
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "${PROJECT_ROOT}" || { print_error "无法进入项目目录"; exit 1; }
 
-# 加载环境配置
+# ==================== 加载环境配置 ====================
 if [ -f "${PROJECT_ROOT}/.env" ]; then
     source "${PROJECT_ROOT}/.env"
 fi
 
-# 进入项目目录
-cd "${PROJECT_ROOT}" || { print_error "无法进入项目目录"; exit 1; }
-
-# 检查虚拟环境
-if [ ! -d ".venv" ]; then
-    print_error "虚拟环境不存在，请先运行: ./scripts/setup.sh"
-    exit 1
-fi
-
-# 激活虚拟环境
-if [ "$IS_WINDOWS" = true ]; then
-    source .venv/Scripts/activate
-else
-    source .venv/bin/activate
-fi
-
-# 查找 uv 命令
-UV_CMD=""
-if [ -f ".venv/$VENV_BIN/uv" ] || [ -f ".venv/$VENV_BIN/uv.exe" ]; then
-    UV_CMD=".venv/$VENV_BIN/uv"
-elif command -v uv &> /dev/null; then
-    UV_CMD="uv"
-elif [ -n "$UV_PATH" ] && [ -f "$UV_PATH/uv" ]; then
-    UV_CMD="$UV_PATH/uv"
-elif [ -n "$UV_PATH" ] && [ -f "$UV_PATH/uv.exe" ]; then
-    UV_CMD="$UV_PATH/uv.exe"
-else
-    print_error "未找到 uv 命令"
-    exit 1
-fi
-
-# 显示当前环境信息
-show_status() {
-    echo
-    echo "================== 当前环境状态 =================="
-    echo -e "${BLUE}项目目录:${NC} $PROJECT_ROOT"
-    echo -e "${BLUE}操作系统:${NC} $([ "$IS_WINDOWS" = true ] && echo "Windows" || echo "Linux")"
-    echo -e "${BLUE}Python:${NC} $(python --version 2>&1)"
-    echo -e "${BLUE}Python 路径:${NC} $(which python)"
-    echo -e "${BLUE}UV:${NC} $("$UV_CMD" --version 2>&1)"
-    echo -e "${BLUE}UV 路径:${NC} $UV_CMD"
-    echo "=================================================="
+# ==================== 查找命令 ====================
+find_uv_cmd() {
+    if [ -f ".venv/$VENV_BIN/uv" ] || [ -f ".venv/$VENV_BIN/uv.exe" ]; then
+        echo ".venv/$VENV_BIN/uv"
+    elif command -v uv &> /dev/null; then
+        echo "uv"
+    elif [ -n "$UV_PATH" ] && [ -f "$UV_PATH/uv" ]; then
+        echo "$UV_PATH/uv"
+    elif [ -n "$UV_PATH" ] && [ -f "$UV_PATH/uv.exe" ]; then
+        echo "$UV_PATH/uv.exe"
+    else
+        echo ""
+    fi
 }
 
-# 同步依赖
+find_python_cmd() {
+    if [ -n "$PYTHON_PATH" ] && [ -f "$PYTHON_PATH/$PYTHON_EXE" ]; then
+        echo "$PYTHON_PATH/$PYTHON_EXE"
+    elif command -v python &> /dev/null; then
+        echo "python"
+    elif command -v python3 &> /dev/null; then
+        echo "python3"
+    else
+        echo ""
+    fi
+}
+
+# ==================== 虚拟环境管理 ====================
+check_venv() {
+    if [ ! -d ".venv" ]; then
+        return 1
+    fi
+    return 0
+}
+
+create_venv() {
+    local python_cmd=$1
+    local uv_cmd=$2
+    
+    print_step "创建虚拟环境..."
+    if [ -n "$uv_cmd" ] && [ "$uv_cmd" != "uv" ]; then
+        "$uv_cmd" venv --python "$python_cmd" --seed  # 添加 --seed 安装 pip
+    else
+        if command -v uv &> /dev/null; then
+            uv venv --python "$python_cmd" --seed  # 添加 --seed 安装 pip
+        else
+            "$python_cmd" -m venv .venv
+        fi
+    fi
+    print_success "虚拟环境创建完成"
+}
+
+activate_venv() {
+    if [ "$IS_WINDOWS" = true ]; then
+        source .venv/Scripts/activate 2>/dev/null || true
+    else
+        source .venv/bin/activate 2>/dev/null || true
+    fi
+}
+
+recreate_venv() {
+    print_warn "重建虚拟环境..."
+    rm -rf .venv
+    local python_cmd=$(find_python_cmd)
+    local uv_cmd=$(find_uv_cmd)
+    create_venv "$python_cmd" "$uv_cmd"
+}
+
+# ==================== 依赖管理 ====================
 sync_deps() {
     local upgrade=$1
-    echo "同步依赖..."
+    local uv_cmd=$(find_uv_cmd)
+    
+    if [ -z "$uv_cmd" ]; then
+        print_error "未找到 uv 命令"
+        return 1
+    fi
+    
+    print_step "同步依赖..."
+    export UV_LINK_MODE="${UV_LINK_MODE:-copy}"
+    [ -n "$UV_INDEX_URL" ] && export UV_INDEX_URL="$UV_INDEX_URL"
+    [ -n "$UV_CONCURRENT_DOWNLOADS" ] && export UV_CONCURRENT_DOWNLOADS="$UV_CONCURRENT_DOWNLOADS"
+    
     if [ "$upgrade" = "upgrade" ]; then
         print_info "更新所有依赖到最新版本..."
-        "$UV_CMD" sync --upgrade --all-extras --link-mode=copy
+        "$uv_cmd" sync --upgrade --all-extras --link-mode=copy
     else
-        "$UV_CMD" sync --all-extras --link-mode=copy
+        "$uv_cmd" sync --all-extras --link-mode=copy
     fi
     print_success "依赖同步完成"
 }
 
-# 运行测试
-run_tests() {
-    echo "运行测试..."
-    if python -m pytest --version &> /dev/null; then
-        python -m pytest "$@"
+add_dep() {
+    local package=$1
+    local uv_cmd=$(find_uv_cmd)
+    
+    if [ -z "$package" ]; then
+        print_error "请指定包名"
+        return 1
+    fi
+    
+    print_step "添加依赖: $package"
+    "$uv_cmd" add "$package"
+    print_success "依赖添加完成"
+}
+
+remove_dep() {
+    local package=$1
+    local uv_cmd=$(find_uv_cmd)
+    
+    if [ -z "$package" ]; then
+        print_error "请指定包名"
+        return 1
+    fi
+    
+    print_step "移除依赖: $package"
+    "$uv_cmd" remove "$package"
+    print_success "依赖移除完成"
+}
+
+# ==================== 代码检查 ====================
+run_ruff_check() {
+    print_step "Ruff 代码检查..."
+    uv run ruff check .
+    print_success "Ruff 检查通过"
+}
+
+run_ruff_format() {
+    print_step "Ruff 代码格式化检查..."
+    uv run ruff format . --check
+    print_success "代码格式正确"
+}
+
+run_basedpyright() {
+    print_step "Basedpyright 类型检查..."
+    if uv run basedpyright --version &> /dev/null; then
+        uv run basedpyright
+        print_success "类型检查通过"
     else
-        print_error "pytest 未安装，请运行: $UV_CMD add pytest"
+        print_warn "basedpyright 未安装，跳过类型检查"
     fi
 }
 
-# 构建项目
-build_project() {
-    echo "构建项目..."
-    "$UV_CMD" build
-    print_success "构建完成"
+run_all_checks() {
+    print_title "运行代码质量检查"
+    run_ruff_check
+    echo
+    run_ruff_format
+    echo
+    run_basedpyright
+    print_success "所有检查通过！"
 }
 
-# 清理缓存
+fix_code() {
+    print_title "自动修复代码问题"
+    print_step "格式化代码..."
+    uv run ruff format .
+    print_step "修复代码问题..."
+    uv run ruff check . --fix
+    print_success "代码修复完成"
+}
+
+# ==================== 测试 ====================
+run_tests() {
+    local args="$@"
+    print_title "运行测试"
+    
+    if [ -z "$args" ]; then
+        args="-v"
+    fi
+    
+    if uv run pytest --version &> /dev/null; then
+        uv run pytest $args
+        print_success "测试完成"
+    else
+        print_error "pytest 未安装"
+        return 1
+    fi
+}
+
+run_tests_with_coverage() {
+    print_title "运行测试（带覆盖率）"
+    
+    if uv run pytest --cov --version &> /dev/null; then
+        uv run pytest --cov=src --cov-report=term --cov-report=html --cov-report=xml -v
+        print_success "测试完成"
+        echo
+        print_info "覆盖率报告:"
+        echo "  - HTML: htmlcov/index.html"
+        echo "  - XML:  coverage.xml"
+    else
+        print_error "pytest-cov 未安装，请运行: ./scripts/dev.sh add pytest-cov"
+        return 1
+    fi
+}
+
+run_specific_test() {
+    local test_path=$1
+    if [ -z "$test_path" ]; then
+        print_error "请指定测试文件或目录"
+        return 1
+    fi
+    
+    print_step "运行测试: $test_path"
+    uv run pytest "$test_path" -v
+}
+
+# ==================== 构建与发布 ====================
+build_project() {
+    print_title "构建项目"
+    local uv_cmd=$(find_uv_cmd)
+    "$uv_cmd" build
+    print_success "构建完成"
+    echo
+    print_info "构建产物位于 dist/ 目录"
+}
+
+check_publish() {
+    print_title "检查发布配置"
+    
+    if uv run twine check dist/* &> /dev/null; then
+        uv run twine check dist/*
+        print_success "发布配置检查通过"
+    else
+        print_warn "twine 未安装，跳过检查"
+        print_info "安装: ./scripts/dev.sh add twine"
+    fi
+}
+
+publish_to_testpypi() {
+    print_title "发布到 TestPyPI"
+    
+    if uv run twine upload --repository testpypi dist/* --skip-existing; then
+        print_success "发布到 TestPyPI 完成"
+    else
+        print_error "发布失败"
+        return 1
+    fi
+}
+
+publish_to_pypi() {
+    print_title "发布到 PyPI"
+    
+    print_warn "即将发布到正式 PyPI，请确认版本号正确"
+    read -p "确认发布？(y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if uv run twine upload dist/*; then
+            print_success "发布到 PyPI 完成"
+        else
+            print_error "发布失败"
+            return 1
+        fi
+    else
+        print_info "已取消发布"
+    fi
+}
+
+# ==================== 清理 ====================
 clean_cache() {
-    echo "清理缓存..."
-    "$UV_CMD" cache clean
-    # 清理 Python 缓存文件
+    print_title "清理缓存"
+    
+    print_step "清理 uv 缓存..."
+    local uv_cmd=$(find_uv_cmd)
+    "$uv_cmd" cache clean 2>/dev/null || true
+    
+    print_step "清理 Python 缓存文件..."
     find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
     find . -type f -name "*.pyc" -delete 2>/dev/null || true
-    print_success "缓存已清理"
+    find . -type f -name ".coverage" -delete 2>/dev/null || true
+    find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
+    find . -type d -name "htmlcov" -exec rm -rf {} + 2>/dev/null || true
+    find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
+    find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
+    
+    print_success "缓存清理完成"
 }
 
-# 显示快捷命令
+clean_all() {
+    print_title "完全清理"
+    print_warn "这将删除虚拟环境和所有缓存"
+    read -p "确认清理？(y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        clean_cache
+        print_step "删除虚拟环境..."
+        rm -rf .venv
+        print_step "删除构建产物..."
+        rm -rf dist/ build/ *.egg-info/
+        print_success "完全清理完成"
+    else
+        print_info "已取消清理"
+    fi
+}
+
+# ==================== 环境信息 ====================
+show_status() {
+    print_title "当前环境状态"
+    
+    echo -e "${BLUE}项目信息:${NC}"
+    echo "  目录: $PROJECT_ROOT"
+    echo "  操作系统: $([ "$IS_WINDOWS" = true ] && echo "Windows" || echo "Linux")"
+    echo
+    
+    echo -e "${BLUE}Python 环境:${NC}"
+    if check_venv; then
+        activate_venv
+        echo "  虚拟环境: 已创建"
+        echo "  Python 版本: $(python --version 2>&1)"
+        echo "  Python 路径: $(which python)"
+    else
+        echo "  虚拟环境: 未创建"
+    fi
+    echo
+    
+    echo -e "${BLUE}工具链:${NC}"
+    local uv_cmd=$(find_uv_cmd)
+    if [ -n "$uv_cmd" ]; then
+        echo "  UV: $($uv_cmd --version 2>&1)"
+        echo "  UV 路径: $uv_cmd"
+    else
+        echo "  UV: 未安装"
+    fi
+    echo
+    
+    if check_venv; then
+        echo -e "${BLUE}已安装的包:${NC}"
+        uv pip list 2>/dev/null | head -20
+        local pkg_count=$(uv pip list 2>/dev/null | wc -l)
+        if [ $pkg_count -gt 20 ]; then
+            echo "  ... 共 $pkg_count 个包"
+        fi
+    fi
+}
+
 show_aliases() {
+    print_title "快捷命令参考"
+    echo -e "${CYAN}依赖管理:${NC}"
+    echo "  ./scripts/dev.sh sync              # 同步依赖"
+    echo "  ./scripts/dev.sh upgrade           # 更新所有依赖"
+    echo "  ./scripts/dev.sh add <package>     # 添加依赖"
+    echo "  ./scripts/dev.sh remove <package>  # 移除依赖"
     echo
-    echo "================== 快捷命令 =================="
-    echo "  $UV_CMD sync --all-extras --dev   同步依赖"
-    echo "  $UV_CMD add <package>             添加依赖"
-    echo "  $UV_CMD remove <package>          移除依赖"
-    echo "  python -m pytest                  运行测试"
-    echo "  $UV_CMD build                     构建项目"
-    echo "=============================================="
+    echo -e "${CYAN}代码质量:${NC}"
+    echo "  ./scripts/dev.sh check             # 运行所有检查"
+    echo "  ./scripts/dev.sh fix               # 自动修复问题"
+    echo "  ./scripts/dev.sh lint              # 仅运行 Ruff 检查"
+    echo "  ./scripts/dev.sh format            # 仅格式化代码"
+    echo "  ./scripts/dev.sh type              # 仅类型检查"
+    echo
+    echo -e "${CYAN}测试:${NC}"
+    echo "  ./scripts/dev.sh test              # 运行测试"
+    echo "  ./scripts/dev.sh test-cov          # 运行测试+覆盖率"
+    echo "  ./scripts/dev.sh test-file <path>  # 运行指定测试"
+    echo
+    echo -e "${CYAN}构建与发布:${NC}"
+    echo "  ./scripts/dev.sh build             # 构建项目"
+    echo "  ./scripts/dev.sh publish-test      # 发布到 TestPyPI"
+    echo "  ./scripts/dev.sh publish           # 发布到 PyPI"
+    echo
+    echo -e "${CYAN}环境管理:${NC}"
+    echo "  ./scripts/dev.sh setup             # 完整环境设置"
+    echo "  ./scripts/dev.sh reset             # 重建虚拟环境"
+    echo "  ./scripts/dev.sh status            # 查看环境状态"
+    echo "  ./scripts/dev.sh clean             # 清理缓存"
+    echo "  ./scripts/dev.sh clean-all         # 完全清理"
+    echo
+    echo -e "${CYAN}开发流水线:${NC}"
+    echo "  ./scripts/dev.sh pipeline          # 运行完整开发流水线"
+    echo "  ./scripts/dev.sh ci                # CI 检查（无修复）"
 }
 
-# 显示帮助
-show_help() {
-    echo
-    echo "================== 使用说明 =================="
-    echo "直接运行菜单: ./scripts/dev.sh"
-    echo "或使用命令行参数:"
-    echo "  ./scripts/dev.sh status   - 查看环境状态"
-    echo "  ./scripts/dev.sh sync      - 同步依赖"
-    echo "  ./scripts/dev.sh upgrade   - 更新所有依赖"
-    echo "  ./scripts/dev.sh test      - 运行测试"
-    echo "  ./scripts/dev.sh build     - 构建项目"
-    echo "  ./scripts/dev.sh clean     - 清理缓存"
-    echo "  ./scripts/dev.sh aliases   - 显示快捷命令"
-    echo "=============================================="
+# ==================== 完整流水线 ====================
+setup_full() {
+    print_title "完整环境设置"
+    
+    # 1. 检查 uv
+    local uv_cmd=$(find_uv_cmd)
+    if [ -z "$uv_cmd" ]; then
+        print_error "uv 未安装，请先安装: pip install uv"
+        exit 1
+    fi
+    print_success "uv 已安装: $($uv_cmd --version)"
+    
+    # 2. 创建虚拟环境
+    if check_venv; then
+        read -p "虚拟环境已存在，是否重建？(y/N): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            recreate_venv
+        fi
+    else
+        local python_cmd=$(find_python_cmd)
+        create_venv "$python_cmd" "$uv_cmd"
+    fi
+    
+    # 3. 激活环境
+    activate_venv
+    
+    # 4. 同步依赖
+    sync_deps
+    
+    # 5. 显示状态
+    show_status
+    
+    print_success "环境设置完成！"
 }
 
-# 命令行参数处理
-case "$1" in
-    status|st)      show_status ;;
-    sync|s)         sync_deps ;;
-    upgrade|up)     sync_deps "upgrade" ;;
-    test|t)         shift; run_tests "$@" ;;
-    build|b)        build_project ;;
-    clean|c)        clean_cache ;;
-    aliases|alias|a) show_aliases ;;
-    help|-h|--help|h) show_help ;;
-    "") ;;
-    *) print_error "未知命令: $1"; show_help; exit 1 ;;
-esac
+run_ci_pipeline() {
+    print_title "CI 检查流水线（无自动修复）"
+    
+    local has_error=0
+    
+    # 检查依赖
+    print_step "检查依赖..."
+    if ! check_venv; then
+        print_error "虚拟环境不存在"
+        has_error=1
+    fi
+    
+    # Ruff 检查
+    print_step "Ruff 检查..."
+    if ! uv run ruff check .; then
+        print_error "Ruff 检查失败"
+        has_error=1
+    fi
+    
+    # 格式检查
+    print_step "格式检查..."
+    if ! uv run ruff format . --check; then
+        print_error "格式检查失败"
+        has_error=1
+    fi
+    
+    # 类型检查
+    print_step "类型检查..."
+    if uv run basedpyright --version &> /dev/null; then
+        if ! uv run basedpyright; then
+            print_error "类型检查失败"
+            has_error=1
+        fi
+    fi
+    
+    # 测试
+    print_step "运行测试..."
+    if ! uv run pytest -v; then
+        print_error "测试失败"
+        has_error=1
+    fi
+    
+    if [ $has_error -eq 0 ]; then
+        print_success "CI 检查全部通过！"
+    else
+        print_error "CI 检查失败"
+        exit 1
+    fi
+}
 
-# 如果有命令行参数，直接退出
-if [ -n "$1" ]; then
-    exit 0
-fi
+run_full_pipeline() {
+    print_title "完整开发流水线"
+    
+    print_step "阶段 1/5: 环境检查"
+    if ! check_venv; then
+        print_warn "虚拟环境不存在，开始设置..."
+        setup_full
+    else
+        activate_venv
+        print_success "环境检查通过"
+    fi
+    echo
+    
+    print_step "阶段 2/5: 同步依赖"
+    sync_deps
+    echo
+    
+    print_step "阶段 3/5: 代码修复"
+    fix_code
+    echo
+    
+    print_step "阶段 4/5: 代码检查"
+    run_all_checks
+    echo
+    
+    print_step "阶段 5/5: 运行测试"
+    run_tests_with_coverage
+    echo
+    
+    print_title "流水线完成"
+    print_success "所有阶段执行成功！"
+    echo
+    echo "下一步:"
+    echo "  - 查看覆盖率报告: open htmlcov/index.html"
+    echo "  - 构建项目: ./scripts/dev.sh build"
+    echo "  - 发布项目: ./scripts/dev.sh publish-test"
+}
 
-# 显示菜单
+# ==================== 菜单 ====================
 show_menu() {
+    clear
+    echo -e "${MAGENTA}"
+    echo "╔══════════════════════════════════════════════════════════════╗"
+    echo "║                                                              ║"
+    echo "║     Beancount Daoru - 完整开发流水线工具                     ║"
+    echo "║                                                              ║"
+    echo "╚══════════════════════════════════════════════════════════════╝"
+    echo -e "${NC}"
+    
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${GREEN}环境管理${NC}"
+    echo -e "  ${GREEN}1${NC}) 完整环境设置    ${GREEN}2${NC}) 重建虚拟环境    ${GREEN}3${NC}) 查看环境状态"
     echo
-    echo "================== Beancount Daoru 开发工具 =================="
-    echo -e "  ${GREEN}1${NC}. 同步依赖 (uv sync)"
-    echo -e "  ${GREEN}2${NC}. 更新所有依赖 (uv sync --upgrade)"
-    echo -e "  ${GREEN}3${NC}. 运行测试 (pytest)"
-    echo -e "  ${GREEN}4${NC}. 构建项目 (uv build)"
-    echo -e "  ${GREEN}5${NC}. 查看已安装包 (uv pip list)"
-    echo -e "  ${GREEN}6${NC}. 清理缓存"
-    echo -e "  ${GREEN}7${NC}. 查看环境状态"
-    echo -e "  ${GREEN}8${NC}. 显示快捷命令"
-    echo -e "  ${GREEN}9${NC}. 退出"
-    echo "=============================================================="
-    echo -n "请选择 [1-9]: "
+    echo -e "${GREEN}依赖管理${NC}"
+    echo -e "  ${GREEN}4${NC}) 同步依赖        ${GREEN}5${NC}) 更新所有依赖    ${GREEN}6${NC}) 添加依赖"
+    echo -e "  ${GREEN}7${NC}) 移除依赖"
+    echo
+    echo -e "${GREEN}代码质量${NC}"
+    echo -e "  ${GREEN}8${NC}) 运行所有检查    ${GREEN}9${NC}) 自动修复问题    ${GREEN}10${NC}) 仅 Ruff 检查"
+    echo -e "  ${GREEN}11${NC}) 仅格式化代码    ${GREEN}12${NC}) 仅类型检查"
+    echo
+    echo -e "${GREEN}测试${NC}"
+    echo -e "  ${GREEN}13${NC}) 运行测试        ${GREEN}14${NC}) 测试+覆盖率     ${GREEN}15${NC}) 运行指定测试"
+    echo
+    echo -e "${GREEN}构建与发布${NC}"
+    echo -e "  ${GREEN}16${NC}) 构建项目        ${GREEN}17${NC}) 发布到 TestPyPI ${GREEN}18${NC}) 发布到 PyPI"
+    echo
+    echo -e "${GREEN}清理${NC}"
+    echo -e "  ${GREEN}19${NC}) 清理缓存        ${GREEN}20${NC}) 完全清理"
+    echo
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${YELLOW}开发流水线${NC}"
+    echo -e "  ${YELLOW}21${NC}) 完整开发流水线  ${YELLOW}22${NC}) CI 检查流水线"
+    echo
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "  ${YELLOW}0${NC}) 退出            ${YELLOW}h${NC}) 显示快捷命令"
+    echo
+    echo -n "请选择 [0-22]: "
 }
 
-# 主循环
-while true; do
-    show_menu
-    read -r choice
-    echo
-    case $choice in
-        1) sync_deps ;;
-        2) sync_deps "upgrade" ;;
-        3) run_tests ;;
-        4) build_project ;;
-        5) echo "已安装的包:"; "$UV_CMD" pip list ;;
-        6) clean_cache ;;
-        7) show_status ;;
-        8) show_aliases ;;
-        9) echo "退出"; exit 0 ;;
-        *) print_error "无效选择" ;;
-    esac
-    echo
-    read -p "按 Enter 键继续..."
-done
+# ==================== 命令行参数处理 ====================
+case "$1" in
+    # 环境管理
+    setup|install)          setup_full ;;
+    reset|recreate)         recreate_venv ;;
+    status|st)              show_status ;;
+    
+    # 依赖管理
+    sync|s)                 sync_deps ;;
+    upgrade|up)             sync_deps "upgrade" ;;
+    add)                    shift; add_dep "$@" ;;
+    remove|rm)              shift; remove_dep "$@" ;;
+    
+    # 代码质量
+    check|c)                run_all_checks ;;
+    fix|fmt)                fix_code ;;
+    lint|l)                 run_ruff_check ;;
+    format)                 run_ruff_format ;;
+    type|ty)                run_basedpyright ;;
+    
+    # 测试
+    test|t)                 shift; run_tests "$@" ;;
+    test-cov|coverage|cov)  run_tests_with_coverage ;;
+    test-file|tf)           shift; run_specific_test "$@" ;;
+    
+    # 构建与发布
+    build|b)                build_project ;;
+    publish-test|publish-testpypi) publish_to_testpypi ;;
+    publish|pypi)           publish_to_pypi ;;
+    
+    # 清理
+    clean|cache)            clean_cache ;;
+    clean-all|distclean)    clean_all ;;
+    
+    # 流水线
+    pipeline|full)          run_full_pipeline ;;
+    ci)                     run_ci_pipeline ;;
+    
+    # 帮助
+    alias|aliases)          show_aliases ;;
+    help|-h|--help|h)       show_aliases ;;
+    
+    # 交互式菜单
+    "")
+        while true; do
+            show_menu
+            read -r choice
+            echo
+            case $choice in
+                0)  echo -e "${GREEN}再见！${NC}"; exit 0 ;;
+                1)  setup_full ;;
+                2)  recreate_venv ;;
+                3)  show_status ;;
+                4)  sync_deps ;;
+                5)  sync_deps "upgrade" ;;
+                6)  read -p "包名: " pkg; add_dep "$pkg" ;;
+                7)  read -p "包名: " pkg; remove_dep "$pkg" ;;
+                8)  run_all_checks ;;
+                9)  fix_code ;;
+                10) run_ruff_check ;;
+                11) run_ruff_format ;;
+                12) run_basedpyright ;;
+                13) run_tests ;;
+                14) run_tests_with_coverage ;;
+                15) read -p "测试路径: " path; run_specific_test "$path" ;;
+                16) build_project ;;
+                17) publish_to_testpypi ;;
+                18) publish_to_pypi ;;
+                19) clean_cache ;;
+                20) clean_all ;;
+                21) run_full_pipeline ;;
+                22) run_ci_pipeline ;;
+                h|H) show_aliases ;;
+                *)  print_error "无效选择" ;;
+            esac
+            echo
+            read -p "按 Enter 键继续..."
+        done
+        ;;
+    *)
+        print_error "未知命令: $1"
+        show_aliases
+        exit 1
+        ;;
+esac
