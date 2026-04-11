@@ -19,7 +19,6 @@ from beancount import (
     Posting,
     Transaction,
 )
-
 from beancount_daoru.hooks.predict_missing_posting import (
     ChatModelSettings,
     EmbeddingModelSettings,
@@ -44,7 +43,7 @@ def run_async(coro: Awaitable[T]) -> T:
     return loop.run_until_complete(coro)
 
 
-@pytest.fixture
+@pytest.fixture()
 def mock_encoder() -> AsyncMock:
     """创建 mock 编码器."""
     encoder = AsyncMock(spec=_Encoder)
@@ -52,7 +51,7 @@ def mock_encoder() -> AsyncMock:
     return encoder
 
 
-@pytest.fixture
+@pytest.fixture()
 def mock_chat_bot() -> AsyncMock:
     """创建 mock 聊天机器人."""
     chat_bot = AsyncMock(spec=_ChatBot)
