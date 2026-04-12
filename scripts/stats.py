@@ -36,7 +36,10 @@ import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TypedDict, cast
+from typing import TYPE_CHECKING, TypedDict, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 # ==================== 类型定义 ====================
@@ -285,7 +288,7 @@ def _read_csv_with_encoding(
     try:
         with csv_file.open(encoding=encoding) as f:
             for _i in range(skip_lines):
-                f.readline()
+                _ = f.readline()
             reader = csv.DictReader(f)
             return list(reader)
     except (UnicodeDecodeError, UnicodeError):
@@ -853,8 +856,8 @@ def _display_overview(transactions: list[TransactionDict]) -> None:
         postings_str = ", ".join(
             f"{p['account'].split(':')[-1]} {p['amount']:+.2f}" for p in txn["postings"]
         )
-        _ = txn["metadata"].get("dc", "")
-        type_ = txn["metadata"].get("type", "")
+        _dc: str = txn["metadata"].get("dc", "")
+        type_: str = txn["metadata"].get("type", "")
         print(f"  {txn['date']} {txn['payee']:<20s}  {type_:<8s}  {postings_str}")
 
 
@@ -981,8 +984,8 @@ def cmd_check(args: argparse.Namespace) -> None:
 
     print_title(f"Beancount 语法检查: {target.name}")
 
-    result = subprocess.run(
-        [bean_check_cmd, str(target)],  # noqa: S603
+    result = subprocess.run(  # noqa: S603
+        [bean_check_cmd, str(target)],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -1023,8 +1026,8 @@ def cmd_report(args: argparse.Namespace) -> None:
     report_type: str = cast("str", args.report_type) or "balances"
     print_title(f"Beancount 报表: {report_type}")
 
-    result = subprocess.run(
-        [bean_report_cmd, str(target), report_type],  # noqa: S603
+    result = subprocess.run(  # noqa: S603
+        [bean_report_cmd, str(target), report_type],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -1068,8 +1071,8 @@ def cmd_merge(args: argparse.Namespace) -> None:
 
         main_bean.open("a", encoding="utf-8").close()
         with main_bean.open("a", encoding="utf-8") as f:
-            f.write("\n;; 导入的支付宝账单\n")
-            f.write('include "imported_transactions.bean"\n')
+            _ = f.write("\n;; 导入的支付宝账单\n")
+            _ = f.write('include "imported_transactions.bean"\n')
 
         print_ok(f"已在 {main_bean.name} 中添加 include 引用")
     else:
@@ -1083,7 +1086,7 @@ def cmd_merge(args: argparse.Namespace) -> None:
         import_content, _enc = read_file_auto(bean_file)
         if import_content:
             with main_bean.open("a", encoding="utf-8") as f:
-                f.write("\n;; 以下为导入的交易记录\n")
+                _ = f.write("\n;; 以下为导入的交易记录\n")
                 f.writelines(import_content)
             print_ok(f"已将 {bean_file.name} 追加到 {main_bean.name}")
 
@@ -1169,7 +1172,7 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--data-dir",
         default="beancount-data",
         help="beancount-data 目录路径(默认: beancount-data)",
@@ -1179,57 +1182,61 @@ def main() -> None:
 
     # --- stats 子命令 ---
     p_stats = subparsers.add_parser("stats", help="统计分析")
-    p_stats.add_argument("--all", action="store_true", help="运行所有统计")
-    p_stats.add_argument(
+    _ = p_stats.add_argument("--all", action="store_true", help="运行所有统计")
+    _ = p_stats.add_argument(
         "--accounts", action="store_true", help="统计各账户交易次数和金额"
     )
-    p_stats.add_argument(
+    _ = p_stats.add_argument(
         "--payment", action="store_true", help="统计原始收付款方式汇总"
     )
-    p_stats.add_argument("--types", action="store_true", help="统计交易类型和状态")
-    p_stats.add_argument("--integrity", action="store_true", help="检查交易完整性")
-    p_stats.add_argument(
+    _ = p_stats.add_argument("--types", action="store_true", help="统计交易类型和状态")
+    _ = p_stats.add_argument("--integrity", action="store_true", help="检查交易完整性")
+    _ = p_stats.add_argument(
         "--mapping", action="store_true", help="对比原始支付方式和映射账户"
     )
 
     # --- view 子命令 ---
     p_view = subparsers.add_parser("view", help="查看交易记录")
-    p_view.add_argument("--head", type=int, metavar="N", help="查看前 N 条交易")
-    p_view.add_argument("--tail", type=int, metavar="N", help="查看最后 N 条交易")
-    p_view.add_argument("--date", metavar="YYYY-MM-DD", help="查看指定日期的交易")
-    p_view.add_argument(
+    _ = p_view.add_argument("--head", type=int, metavar="N", help="查看前 N 条交易")
+    _ = p_view.add_argument("--tail", type=int, metavar="N", help="查看最后 N 条交易")
+    _ = p_view.add_argument("--date", metavar="YYYY-MM-DD", help="查看指定日期的交易")
+    _ = p_view.add_argument(
         "--date-range", metavar="START,END", help="查看日期范围内的交易"
     )
-    p_view.add_argument("--brief", action="store_true", help="简洁模式(不显示元数据)")
+    _ = p_view.add_argument(
+        "--brief", action="store_true", help="简洁模式(不显示元数据)"
+    )
 
     # --- search 子命令 ---
     p_search = subparsers.add_parser("search", help="搜索交易")
-    p_search.add_argument("--account", "-a", metavar="KEYWORD", help="按账户关键词搜索")
-    p_search.add_argument("--payee", "-p", metavar="KEYWORD", help="按收款方搜索")
-    p_search.add_argument("--type", "-t", metavar="KEYWORD", help="按交易类型搜索")
-    p_search.add_argument("--brief", action="store_true", help="简洁模式")
+    _ = p_search.add_argument(
+        "--account", "-a", metavar="KEYWORD", help="按账户关键词搜索"
+    )
+    _ = p_search.add_argument("--payee", "-p", metavar="KEYWORD", help="按收款方搜索")
+    _ = p_search.add_argument("--type", "-t", metavar="KEYWORD", help="按交易类型搜索")
+    _ = p_search.add_argument("--brief", action="store_true", help="简洁模式")
 
     # --- check 子命令 ---
     p_check = subparsers.add_parser("check", help="验证 Beancount 语法")
-    p_check.add_argument(
+    _ = p_check.add_argument(
         "--main", action="store_true", help="检查主账本(默认检查导入文件)"
     )
 
     # --- report 子命令 ---
     p_report = subparsers.add_parser("report", help="生成报表")
-    p_report.add_argument(
+    _ = p_report.add_argument(
         "report_type",
         nargs="?",
         default="balances",
         help="报表类型: balances, income_statement 等(默认: balances)",
     )
-    p_report.add_argument(
+    _ = p_report.add_argument(
         "--main", action="store_true", help="使用主账本(默认使用导入文件)"
     )
 
     # --- merge 子命令 ---
     p_merge = subparsers.add_parser("merge", help="合并到主账本")
-    p_merge.add_argument(
+    _ = p_merge.add_argument(
         "--include",
         action="store_true",
         help="使用 include 方式引用(推荐,默认为直接追加)",
@@ -1237,16 +1244,16 @@ def main() -> None:
 
     # --- archive 子命令 ---
     p_archive = subparsers.add_parser("archive", help="归档账单文件")
-    p_archive.add_argument(
+    _ = p_archive.add_argument(
         "-o", "--output", default="archive", help="归档目录(默认: archive)"
     )
 
     # --- clean 子命令 ---
-    subparsers.add_parser("clean", help="清理空行")
+    _ = subparsers.add_parser("clean", help="清理空行")
 
     args = parser.parse_args()
 
-    command_arg: str | None = args.command
+    command_arg: str | None = getattr(args, "command", None)
     if command_arg is None:
         # 默认运行 stats --all
         args.command = "stats"
@@ -1257,7 +1264,7 @@ def main() -> None:
         args.integrity = False
         args.mapping = False
 
-    commands: dict[str, callable[[argparse.Namespace], None]] = {
+    commands: dict[str, Callable[[argparse.Namespace], None]] = {
         "stats": cmd_stats,
         "view": cmd_view,
         "search": cmd_search,
@@ -1268,11 +1275,11 @@ def main() -> None:
         "clean": cmd_clean,
     }
 
-    cmd_func = commands.get(args.command)
+    cmd_func: Callable[[argparse.Namespace], None] | None = commands.get(args.command)  # type: ignore[assignment]
     if cmd_func:
         cmd_func(args)
     else:
-        parser.print_help()
+        _ = parser.print_help()
 
 
 if __name__ == "__main__":

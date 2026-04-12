@@ -55,7 +55,7 @@
   status: "交易成功"
   Assets:Payment:Alipay:Balance  222228.50 CNY
 
-1970-01-01 !
+1970-01-01 ! 
   error: "unsupported value combination of fields: ('收/支', '交易状态', '商品说明') @ {'交易时间': '2023-02-02 15:24:35', '交易分类': '投资理财', '交易对方': '蚂蚁财富-蚂蚁（杭州）基金销售有限公司', '对方账号': '/', '商品说明': '蚂蚁财富-交银定期支付双息平衡混合-卖出至余额宝', '收/支': '不计收支', '金额': '99.34', '收/付款方式': '余额宝', '交易状态': '交易成功', '交易订单号': '2xxxxxxxxxxxxxxxxxxxxxxxxxx8', '商家订单号': '', '备注': ''}"
 
 2023-02-04 * "xxxxxxx" "退款-亲情卡"
@@ -560,21 +560,21 @@
   Equity:Transfers:WeChat:ICBC   -1300.00 CNY
   Assets:Payment:WeChat:Balance   1300.00 CNY
 
-2020-07-06 *
+2020-07-06 * 
   time: "14:54:38"
   type: "零钱通转出-到工商银行(9876)"
   status: "支付成功"
   Assets:Payment:WeChat:MiniFund  -5505.00 CNY
   Equity:Transfers:WeChat:ICBC     5505.00 CNY
 
-2020-02-14 *
+2020-02-14 * 
   time: "01:20:00"
   type: "转入零钱通-来自零钱"
   status: "支付成功"
   Assets:Payment:WeChat:Balance   -1.23 CNY
   Assets:Payment:WeChat:MiniFund   1.23 CNY
 
-2020-02-14 *
+2020-02-14 * 
   time: "01:19:39"
   type: "零钱通转出-到零钱"
   status: "支付成功"
@@ -626,7 +626,7 @@
   Assets:Payment:WeChat:Balance   100.10 CNY
   Expenses:WeChat:Service           0.10 CNY
 
-2021-01-17 *
+2021-01-17 * 
   time: "10:07:31"
   type: "转入零钱通-来自工商银行(9876)"
   status: "支付成功"
@@ -667,3 +667,5 @@
   type: "商户消费"
   status: "支付成功"
   Equity:Transfers:WeChat:BOC  -28.16 CNY
+
+
