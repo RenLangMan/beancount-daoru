@@ -26,7 +26,7 @@ winget install llama.cpp
 
 ```shell
 llama-server -hf 'unsloth/embeddinggemma-300m-GGUF:Q4_0' --port 1314 \
-  --embedding 
+  --embedding
 llama-server -hf 'unsloth/Qwen3-4B-Instruct-2507-GGUF:IQ4_NL' --port 9527
 ```
 

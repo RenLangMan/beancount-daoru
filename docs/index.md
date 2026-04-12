@@ -95,7 +95,7 @@
    ```python
    import beangulp
    from beancount_daoru import AlipayImporter
-   
+
    CONFIG = [
        AlipayImporter(
            account_mapping={
@@ -110,7 +110,7 @@
            },
        ),
    ]
-   
+
    if __name__ == "__main__":
        ingest = beangulp.Ingest(CONFIG)
        ingest()
@@ -121,10 +121,10 @@
    ```bash
    # 识别账单文件
    python import.py identify /path/to/bills
-   
+
    # 导入交易数据
    python import.py extract /path/to/bills -o output.beancount
-   
+
    # 归档原始文件
    python import.py archive /path/to/bills -o /path/to/archive
    ```

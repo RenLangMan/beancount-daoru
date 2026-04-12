@@ -1,5 +1,4 @@
 import beangulp
-
 from beancount_daoru import (
     AlipayImporter,
     JDImporter,
