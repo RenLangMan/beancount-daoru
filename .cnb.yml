@@ -51,7 +51,7 @@
         shfmt:
           script: |
             echo "🔍 检查 Shell 脚本格式..."
-            shfmt -d scripts/*.sh
+            shfmt -d -sr scripts/*.sh  # 添加 -sr，与 pre-commit 一致
             echo "✅ shfmt 检查完成"
 
         uvlock:

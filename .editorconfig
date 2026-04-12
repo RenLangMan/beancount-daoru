@@ -35,6 +35,9 @@ indent_size = 2
 indent_style = space
 indent_size = 2
 end_of_line = lf
+# 以下配置会被 shfmt 识别
+switch_case_indent = true  # 某些版本支持
+space-redirects = false  # 这个选项控制重定向操作符的空格，false 表示无空格
 
 [Makefile]
 indent_style = tab

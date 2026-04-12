@@ -24,14 +24,14 @@
 
 当前支持的账单源：
 
-| 源 | 导出方式 | 格式 |
-| --- | --- | --- |
-| 支付宝 | APP导出，全部勾选，发送到邮箱 | csv |
-| 微信 | APP导出，全部勾选，发送到邮箱 | xlsx |
-| 京东 | APP导出，全部勾选，发送到邮箱 | csv |
-| 美团 | APP导出，全部勾选，发送到邮箱 | csv |
-| 中国银行 | APP导出，全部勾选，APP内下载 | pdf |
-| 交通银行 | APP导出，全部勾选，发送到邮箱 | pdf |
+| 源       | 导出方式                      | 格式 |
+| -------- | ----------------------------- | ---- |
+| 支付宝   | APP导出，全部勾选，发送到邮箱 | csv  |
+| 微信     | APP导出，全部勾选，发送到邮箱 | xlsx |
+| 京东     | APP导出，全部勾选，发送到邮箱 | csv  |
+| 美团     | APP导出，全部勾选，发送到邮箱 | csv  |
+| 中国银行 | APP导出，全部勾选，APP内下载  | pdf  |
+| 交通银行 | APP导出，全部勾选，发送到邮箱 | pdf  |
 
 ## 快速开始
 
@@ -255,7 +255,7 @@ currency_mapping={
   对房产、RSU、ESPP的建模进行了探讨
 - [EinVerne 的博客](https://blog.einverne.info/categories.html#Beancount):
   全面的介绍，尤其是对各类账单导入进行了分享
-- [KAAAsS 的博客](https://blog.kaaass.net/archives/category/continuous/复式记账指北):
+- [KAAAsS 的博客](https://blog.kaaass.net/archives/category/continuous/%E5%A4%8D%E5%BC%8F%E8%AE%B0%E8%B4%A6%E6%8C%87%E5%8C%97):
   探讨了基于 Telegram Bot 的自动记账方案
 - [double-entry-generator "账户映射"文档](https://deb-sig.github.io/double-entry-generator/configuration/accounts.html):
   double-entry-generator 作者提供的账户分类最佳实践
@@ -264,13 +264,16 @@ currency_mapping={
 
 - [用于支付宝和微信账单的Beancount Importer](https://zhuanlan.zhihu.com/p/103705480)
   ——一篇自己实现 Importer 的心得
+
 - [使用 Beancount 进行记账并自动记录一卡通消费](https://lug.ustc.edu.cn/planet/2020/08/keeping-account-with-beancount/)：
   ——分享了编写 Importer 自动记录一卡通消费的心得
+
 - [关于账单重复的处理方案](https://github.com/deb-sig/double-entry-generator/discussions/162)：
   账单自动导入场景中，关于账单重复情况处理方案的讨论
 
 - [Essential Beancount plugins and import automation for 2025](https://beancount.io/forum/t/essential-beancount-plugins-and-import-automation-for-2025/76)
   ——一篇2025年的关于插件和自动导入的综述与讨论
+
 - [The Five-Minute Ledger Update](https://reds-rants.netlify.app/personal-finance/the-five-minute-ledger-update/)：
   利用自动化工具减少记账时间的讨论
 

@@ -28,16 +28,16 @@ print_title() {
 
 # ==================== 检测操作系统 ====================
 case "$OSTYPE" in
-msys* | cygwin* | win32* | mingw*)
-  IS_WINDOWS=true
-  VENV_BIN="Scripts"
-  PYTHON_EXE="python.exe"
-  ;;
-*)
-  IS_WINDOWS=false
-  VENV_BIN="bin"
-  PYTHON_EXE="python"
-  ;;
+  msys* | cygwin* | win32* | mingw*)
+    IS_WINDOWS=true
+    VENV_BIN="Scripts"
+    PYTHON_EXE="python.exe"
+    ;;
+  *)
+    IS_WINDOWS=false
+    VENV_BIN="bin"
+    PYTHON_EXE="python"
+    ;;
 esac
 
 # ==================== 路径设置 ====================
@@ -57,7 +57,7 @@ fi
 find_uv_cmd() {
   if [ -f ".venv/$VENV_BIN/uv" ] || [ -f ".venv/$VENV_BIN/uv.exe" ]; then
     echo ".venv/$VENV_BIN/uv"
-  elif command -v uv &>/dev/null; then
+  elif command -v uv &> /dev/null; then
     echo "uv"
   elif [ -n "$UV_PATH" ] && [ -f "$UV_PATH/uv" ]; then
     echo "$UV_PATH/uv"
@@ -71,9 +71,9 @@ find_uv_cmd() {
 find_python_cmd() {
   if [ -n "$PYTHON_PATH" ] && [ -f "$PYTHON_PATH/$PYTHON_EXE" ]; then
     echo "$PYTHON_PATH/$PYTHON_EXE"
-  elif command -v python &>/dev/null; then
+  elif command -v python &> /dev/null; then
     echo "python"
-  elif command -v python3 &>/dev/null; then
+  elif command -v python3 &> /dev/null; then
     echo "python3"
   else
     echo ""
@@ -96,7 +96,7 @@ create_venv() {
   if [ -n "$uv_cmd" ] && [ "$uv_cmd" != "uv" ]; then
     "$uv_cmd" venv --python "$python_cmd" --seed # 添加 --seed 安装 pip
   else
-    if command -v uv &>/dev/null; then
+    if command -v uv &> /dev/null; then
       uv venv --python "$python_cmd" --seed # 添加 --seed 安装 pip
     else
       "$python_cmd" -m venv .venv
@@ -107,9 +107,9 @@ create_venv() {
 
 activate_venv() {
   if [ "$IS_WINDOWS" = true ]; then
-    source .venv/Scripts/activate 2>/dev/null || true
+    source .venv/Scripts/activate 2> /dev/null || true
   else
-    source .venv/bin/activate 2>/dev/null || true
+    source .venv/bin/activate 2> /dev/null || true
   fi
 }
 
@@ -198,7 +198,7 @@ run_shellcheck() {
   SHELLCHECK_CMD=""
   if [ -f ".venv/Scripts/shellcheck.exe" ]; then
     SHELLCHECK_CMD=".venv/Scripts/shellcheck.exe"
-  elif command -v shellcheck &>/dev/null; then
+  elif command -v shellcheck &> /dev/null; then
     SHELLCHECK_CMD="shellcheck"
   fi
 
@@ -217,7 +217,7 @@ run_shfmt() {
   SHFMT_CMD=""
   if [ -f ".venv/Scripts/shfmt.exe" ]; then
     SHFMT_CMD=".venv/Scripts/shfmt.exe"
-  elif command -v shfmt &>/dev/null; then
+  elif command -v shfmt &> /dev/null; then
     SHFMT_CMD="shfmt"
   fi
 
@@ -231,7 +231,7 @@ run_shfmt() {
 
 run_basedpyright() {
   print_step "Basedpyright 类型检查..."
-  if uv run basedpyright --version &>/dev/null; then
+  if uv run basedpyright --version &> /dev/null; then
     uv run basedpyright
     print_success "类型检查通过"
   else
@@ -264,7 +264,7 @@ fix_code() {
   SHFMT_CMD=""
   if [ -f ".venv/Scripts/shfmt.exe" ]; then
     SHFMT_CMD=".venv/Scripts/shfmt.exe"
-  elif command -v shfmt &>/dev/null; then
+  elif command -v shfmt &> /dev/null; then
     SHFMT_CMD="shfmt"
   fi
 
@@ -288,7 +288,7 @@ run_tests() {
     args=("-v")
   fi
 
-  if uv run pytest --version &>/dev/null; then
+  if uv run pytest --version &> /dev/null; then
     uv run pytest "${args[@]}"
     print_success "测试完成"
   else
@@ -300,7 +300,7 @@ run_tests() {
 run_tests_with_coverage() {
   print_title "运行测试（带覆盖率）"
 
-  if uv run pytest --cov --version &>/dev/null; then
+  if uv run pytest --cov --version &> /dev/null; then
     uv run pytest --cov=src --cov-report=term --cov-report=html --cov-report=xml -v
     print_success "测试完成"
     echo
@@ -338,7 +338,7 @@ build_project() {
 check_publish() {
   print_title "检查发布配置"
 
-  if uv run twine check dist/* &>/dev/null; then
+  if uv run twine check dist/* &> /dev/null; then
     uv run twine check dist/*
     print_success "发布配置检查通过"
   else
@@ -383,16 +383,16 @@ clean_cache() {
   print_step "清理 uv 缓存..."
   local uv_cmd
   uv_cmd=$(find_uv_cmd)
-  "$uv_cmd" cache clean 2>/dev/null || true
+  "$uv_cmd" cache clean 2> /dev/null || true
 
   print_step "清理 Python 缓存文件..."
-  find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-  find . -type f -name "*.pyc" -delete 2>/dev/null || true
-  find . -type f -name ".coverage" -delete 2>/dev/null || true
-  find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
-  find . -type d -name "htmlcov" -exec rm -rf {} + 2>/dev/null || true
-  find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
-  find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
+  find . -type d -name "__pycache__" -exec rm -rf {} + 2> /dev/null || true
+  find . -type f -name "*.pyc" -delete 2> /dev/null || true
+  find . -type f -name ".coverage" -delete 2> /dev/null || true
+  find . -type d -name ".pytest_cache" -exec rm -rf {} + 2> /dev/null || true
+  find . -type d -name "htmlcov" -exec rm -rf {} + 2> /dev/null || true
+  find . -type d -name ".ruff_cache" -exec rm -rf {} + 2> /dev/null || true
+  find . -type d -name ".mypy_cache" -exec rm -rf {} + 2> /dev/null || true
 
   print_success "缓存清理完成"
 }
@@ -424,7 +424,7 @@ run_precommit_install() {
 
 run_precommit() {
   print_title "运行 pre-commit 检查"
-  if command -v pre-commit &>/dev/null; then
+  if command -v pre-commit &> /dev/null; then
     pre-commit run --all-files
     print_success "pre-commit 检查完成"
   else
@@ -467,9 +467,9 @@ show_status() {
 
   if check_venv; then
     echo -e "${BLUE}已安装的包:${NC}"
-    uv pip list 2>/dev/null | head -20
+    uv pip list 2> /dev/null | head -20
     local pkg_count
-    pkg_count=$(uv pip list 2>/dev/null | wc -l)
+    pkg_count=$(uv pip list 2> /dev/null | wc -l)
     if [ "$pkg_count" -gt 20 ]; then
       echo "  ... 共 $pkg_count 个包"
     fi
@@ -583,7 +583,7 @@ run_ci_pipeline() {
 
   # 类型检查
   print_step "类型检查..."
-  if uv run basedpyright --version &>/dev/null; then
+  if uv run basedpyright --version &> /dev/null; then
     if ! uv run basedpyright; then
       print_error "类型检查失败"
       has_error=1
@@ -687,116 +687,116 @@ show_menu() {
 
 # ==================== 命令行参数处理 ====================
 case "$1" in
-# 环境管理
-setup | install) setup_full ;;
-reset | recreate) recreate_venv ;;
-status | st) show_status ;;
+  # 环境管理
+  setup | install) setup_full ;;
+  reset | recreate) recreate_venv ;;
+  status | st) show_status ;;
 
-# 依赖管理
-sync | s) sync_deps ;;
-upgrade | up) sync_deps "upgrade" ;;
-add)
-  shift
-  add_dep "$@"
-  ;;
-remove | rm)
-  shift
-  remove_dep "$@"
-  ;;
+  # 依赖管理
+  sync | s) sync_deps ;;
+  upgrade | up) sync_deps "upgrade" ;;
+  add)
+    shift
+    add_dep "$@"
+    ;;
+  remove | rm)
+    shift
+    remove_dep "$@"
+    ;;
 
-# 代码质量
-check | c) run_all_checks ;;
-fix | fmt) fix_code ;;
-lint | l) run_ruff_check ;;
-format) run_ruff_format ;;
-type | ty) run_basedpyright ;;
-shellcheck | sc) run_shellcheck ;;
-shfmt | sf) run_shfmt ;;
+  # 代码质量
+  check | c) run_all_checks ;;
+  fix | fmt) fix_code ;;
+  lint | l) run_ruff_check ;;
+  format) run_ruff_format ;;
+  type | ty) run_basedpyright ;;
+  shellcheck | sc) run_shellcheck ;;
+  shfmt | sf) run_shfmt ;;
 
-# 测试
-test | t)
-  shift
-  run_tests "$@"
-  ;;
-test-cov | coverage | cov) run_tests_with_coverage ;;
-test-file | tf)
-  shift
-  run_specific_test "$@"
-  ;;
+  # 测试
+  test | t)
+    shift
+    run_tests "$@"
+    ;;
+  test-cov | coverage | cov) run_tests_with_coverage ;;
+  test-file | tf)
+    shift
+    run_specific_test "$@"
+    ;;
 
-# 构建与发布
-build | b) build_project ;;
-publish-test | publish-testpypi) publish_to_testpypi ;;
-publish | pypi) publish_to_pypi ;;
+  # 构建与发布
+  build | b) build_project ;;
+  publish-test | publish-testpypi) publish_to_testpypi ;;
+  publish | pypi) publish_to_pypi ;;
 
-# 清理
-clean | cache) clean_cache ;;
-clean-all | distclean) clean_all ;;
+  # 清理
+  clean | cache) clean_cache ;;
+  clean-all | distclean) clean_all ;;
 
-# 流水线
-pipeline | full) run_full_pipeline ;;
-ci) run_ci_pipeline ;;
+  # 流水线
+  pipeline | full) run_full_pipeline ;;
+  ci) run_ci_pipeline ;;
 
-# Pre-commit
-precommit-install) run_precommit_install ;;
-precommit | precommit-run) run_precommit ;;
+  # Pre-commit
+  precommit-install) run_precommit_install ;;
+  precommit | precommit-run) run_precommit ;;
 
-# 帮助
-alias | aliases) show_aliases ;;
-help | -h | --help | h) show_aliases ;;
+  # 帮助
+  alias | aliases) show_aliases ;;
+  help | -h | --help | h) show_aliases ;;
 
-# 交互式菜单
-"")
-  while true; do
-    show_menu
-    read -r choice
-    echo
-    case $choice in
-    0)
-      echo -e "${GREEN}再见！${NC}"
-      exit 0
-      ;;
-    1) setup_full ;;
-    2) recreate_venv ;;
-    3) show_status ;;
-    4) sync_deps ;;
-    5) sync_deps "upgrade" ;;
-    6)
-      read -r -p "包名: " pkg
-      add_dep "$pkg"
-      ;;
-    7)
-      read -r -p "包名: " pkg
-      remove_dep "$pkg"
-      ;;
-    8) run_all_checks ;;
-    9) fix_code ;;
-    10) run_ruff_check ;;
-    11) run_ruff_format ;;
-    12) run_basedpyright ;;
-    13) run_tests ;;
-    14) run_tests_with_coverage ;;
-    15)
-      read -r -p "测试路径: " path
-      run_specific_test "$path"
-      ;;
-    16) build_project ;;
-    17) publish_to_testpypi ;;
-    18) publish_to_pypi ;;
-    19) clean_cache ;;
-    20) clean_all ;;
-    21) run_full_pipeline ;;
-    22) run_ci_pipeline ;;
-    h | H) show_aliases ;;
-    *) print_error "无效选择" ;;
-    esac
-    echo
-    read -r -p "按 Enter 键继续..."
-  done
-  ;;
-*)
-  print_error "未知命令: $1"
-  show_aliases
-  exit 1
-  ;;
+  # 交互式菜单
+  "")
+    while true; do
+      show_menu
+      read -r choice
+      echo
+      case $choice in
+        0)
+          echo -e "${GREEN}再见！${NC}"
+          exit 0
+          ;;
+        1) setup_full ;;
+        2) recreate_venv ;;
+        3) show_status ;;
+        4) sync_deps ;;
+        5) sync_deps "upgrade" ;;
+        6)
+          read -r -p "包名: " pkg
+          add_dep "$pkg"
+          ;;
+        7)
+          read -r -p "包名: " pkg
+          remove_dep "$pkg"
+          ;;
+        8) run_all_checks ;;
+        9) fix_code ;;
+        10) run_ruff_check ;;
+        11) run_ruff_format ;;
+        12) run_basedpyright ;;
+        13) run_tests ;;
+        14) run_tests_with_coverage ;;
+        15)
+          read -r -p "测试路径: " path
+          run_specific_test "$path"
+          ;;
+        16) build_project ;;
+        17) publish_to_testpypi ;;
+        18) publish_to_pypi ;;
+        19) clean_cache ;;
+        20) clean_all ;;
+        21) run_full_pipeline ;;
+        22) run_ci_pipeline ;;
+        h | H) show_aliases ;;
+        *) print_error "无效选择" ;;
+      esac
+      echo
+      read -r -p "按 Enter 键继续..."
+    done
+    ;;
+  *)
+    print_error "未知命令: $1"
+    show_aliases
+    exit 1
+    ;;
 esac

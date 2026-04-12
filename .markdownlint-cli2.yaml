@@ -3,23 +3,33 @@ config:
   # 启用所有规则
   default: true
 
-  # 忽略的规则
-  MD013: false                    # 行长度（不限制）
-  MD024: false                    # 重复的标题
-  MD025: false                    # 多个顶级标题
-  MD033: false                    # 允许内联 HTML
-  MD041: false                    # 文件第一个标题要求
-  MD046: false                    # 代码块风格
+  # 只关闭真正必要的规则
+  MD013: false # 行长度 - 可以保留关闭（用 mdformat 处理）
+  MD033: false # 允许内联 HTML - 有时确实需要
+
+  # 建议重新启用的规则（你当前关闭了）
+  MD024: true # 重复的标题 - 会造成混淆
+  MD025: true # 多个顶级标题 - 破坏文档结构
+  MD041: true # 文件第一行应该是顶级标题
+  MD046: true # 代码块风格 - 保持一致性
+
+  # 可选规则（建议开启）
+  MD014: true # 命令前不应有 $ 符号
+  MD022: true # 标题前后应有空行
+  MD031: true # 代码块前后应有空行
+  MD032: true # 列表前后应有空行
+  MD034: true # 禁止裸链接
+  MD040: true # 代码块应指定语言
 
   # 自定义规则
   MD007:
-    indent: 2                     # 列表缩进 2 空格
+    indent: 2 # 列表缩进 2 空格
   MD009:
-    br_spaces: 2                  # 行尾空格
+    br_spaces: 2 # 行尾空格
   MD029:
-    style: ordered               # 有序列表样式
+    style: ordered # 有序列表样式
 
-# 忽略的文件
+# 忽略的文件（保持）
 ignores:
   - "**/node_modules/**"
   - "**/.venv/**"
@@ -27,8 +37,8 @@ ignores:
   - "**/dist/**"
   - "**/build/**"
   - "**/.git/**"
-  - "CHANGELOG.md"               # 自动生成的文件
-  - "LICENSE.md"                 # 许可证文件
+  - "CHANGELOG.md" # 自动生成的文件
+  - "LICENSE.md" # 许可证文件
 
 # 自动修复
 fix: true

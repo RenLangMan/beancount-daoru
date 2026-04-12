@@ -12,16 +12,16 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # 检测操作系统
 case "$OSTYPE" in
-msys* | cygwin* | win32* | mingw*)
-  IS_WINDOWS=true
-  VENV_BIN="Scripts"
-  ;;
-*)
-  IS_WINDOWS=false
-  # VENV_BIN is used on Windows only, defined here for consistency
-  # shellcheck disable=SC2034
-  VENV_BIN="bin"
-  ;;
+  msys* | cygwin* | win32* | mingw*)
+    IS_WINDOWS=true
+    VENV_BIN="Scripts"
+    ;;
+  *)
+    IS_WINDOWS=false
+    # VENV_BIN is used on Windows only, defined here for consistency
+    # shellcheck disable=SC2034
+    VENV_BIN="bin"
+    ;;
 esac
 
 RED='\033[0;31m'
@@ -37,7 +37,7 @@ fi
 
 # 查找 uv 命令（优先 PATH，其次 .env 中自定义路径）
 UV_CMD=""
-if command -v uv &>/dev/null; then
+if command -v uv &> /dev/null; then
   UV_CMD="uv"
 elif [ -n "$UV_PATH" ] && [ -f "$UV_PATH/uv" ]; then
   UV_CMD="$UV_PATH/uv"
@@ -54,9 +54,9 @@ if [ -n "$PYTHON_PATH" ] && [ -f "$PYTHON_PATH/python" ]; then
   PYTHON_CMD="$PYTHON_PATH/python"
 elif [ -n "$PYTHON_PATH" ] && [ -f "$PYTHON_PATH/python.exe" ]; then
   PYTHON_CMD="$PYTHON_PATH/python.exe"
-elif command -v python &>/dev/null; then
+elif command -v python &> /dev/null; then
   PYTHON_CMD="python"
-elif command -v python3 &>/dev/null; then
+elif command -v python3 &> /dev/null; then
   PYTHON_CMD="python3"
 else
   print_error "未找到 python 命令"

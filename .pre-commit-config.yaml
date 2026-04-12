@@ -1,7 +1,7 @@
 repos:
   # 基础检查和修复
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -22,12 +22,11 @@ repos:
       # 运行 ruff 格式化
       - id: ruff-format
 
-  # Markdown 检查 (markdownlint)
+  # Markdown 检查（需要在根目录创建 .markdownlint-cli2.yaml）
   - repo: https://github.com/DavidAnson/markdownlint-cli2
     rev: v0.12.1
     hooks:
       - id: markdownlint-cli2
-        args: ["**/*.md", "# node_modules"]
 
   # Markdown 格式化 (mdformat)
   - repo: https://github.com/executablebooks/mdformat
@@ -37,26 +36,29 @@ repos:
         additional_dependencies:
           - mdformat-gfm
           - mdformat-frontmatter
-        args: [--wrap, "keep"]
+        args: [--wrap, "keep", --number] # 添加 --number 参数
         exclude: |
           (?x)^(
               CHANGELOG.md |
               LICENSE.md
           )$
+  # # Shell 脚本检查
+  # - repo: https://github.com/shellcheck-py/shellcheck-py
+  #   rev: v0.11.0.1
+  #   hooks:
+  #     - id: shellcheck
+  #       args: ["--severity=warning"]
 
-  # Shell 脚本检查
-  - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.11.0.1
-    hooks:
-      - id: shellcheck
-        args: ["--severity=warning"]
-
-  # Shell 脚本格式化和检查
+  # Shell 脚本格式化
   - repo: https://github.com/scop/pre-commit-shfmt
     rev: v3.13.1-1
     hooks:
       - id: shfmt
         args: [-i, "2", -ci, -sr, -w]
+        # -i 2: 缩进 2 空格
+        # -ci: case 语句缩进（启用）
+        # -sr: 重定向操作符后加空格
+        # -w: 写入文件
 
   # 类型检查
   - repo: local
