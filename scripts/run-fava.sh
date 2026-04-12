@@ -1,5 +1,7 @@
 #!/bin/bash
 # scripts/run-fava.sh - 启动 Fava Web 界面
+# shellcheck source=/dev/null
+# shellcheck source=/dev/null
 
 set -e
 
@@ -24,25 +26,25 @@ echo -e "${GREEN}========================================${NC}"
 
 # 检查账簿文件是否存在
 if [ ! -f "$BEANCOUNT_FILE" ]; then
-    echo -e "${YELLOW}错误: 找不到账簿文件 $BEANCOUNT_FILE${NC}"
-    exit 1
+  echo -e "${YELLOW}错误: 找不到账簿文件 $BEANCOUNT_FILE${NC}"
+  exit 1
 fi
 
 # 检查虚拟环境是否存在
 if [ -d "$PROJECT_ROOT/.venv" ]; then
-    echo -e "${GREEN}激活虚拟环境...${NC}"
-    source "$PROJECT_ROOT/.venv/Scripts/activate"
+  echo -e "${GREEN}激活虚拟环境...${NC}"
+  source "$PROJECT_ROOT/.venv/Scripts/activate"
 elif [ -d "$PROJECT_ROOT/venv" ]; then
-    echo -e "${GREEN}激活虚拟环境...${NC}"
-    source "$PROJECT_ROOT/venv/Scripts/activate"
+  echo -e "${GREEN}激活虚拟环境...${NC}"
+  source "$PROJECT_ROOT/venv/Scripts/activate"
 else
-    echo -e "${YELLOW}警告: 未找到虚拟环境，使用系统 Python${NC}"
+  echo -e "${YELLOW}警告: 未找到虚拟环境，使用系统 Python${NC}"
 fi
 
 # 检查 fava 是否安装
-if ! command -v fava &> /dev/null; then
-    echo -e "${YELLOW}错误: fava 未安装，请先运行: pip install fava${NC}"
-    exit 1
+if ! command -v fava &>/dev/null; then
+  echo -e "${YELLOW}错误: fava 未安装，请先运行: pip install fava${NC}"
+  exit 1
 fi
 
 echo -e "${GREEN}账簿文件: $BEANCOUNT_FILE${NC}"

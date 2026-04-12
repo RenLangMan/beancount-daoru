@@ -7,19 +7,19 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # 检测操作系统
 case "$OSTYPE" in
-    msys*|cygwin*|win32*|mingw*)
-        IS_WINDOWS=true
-        VENV_BIN="Scripts"
-        ;;
-    *)
-        IS_WINDOWS=false
-        VENV_BIN="bin"
-        ;;
+  msys* | cygwin* | win32* | mingw*)
+    IS_WINDOWS=true
+    VENV_BIN="Scripts"
+    ;;
+  *)
+    IS_WINDOWS=false
+    VENV_BIN="bin"
+    ;;
 esac
 
 # 加载 .env 配置（如果存在）
 if [ -f "${PROJECT_ROOT}/.env" ]; then
-    source "${PROJECT_ROOT}/.env"
+  source "${PROJECT_ROOT}/.env"
 fi
 
 # 进入项目目录
@@ -27,15 +27,15 @@ cd "${PROJECT_ROOT}" || exit 1
 
 # 检查必要的文件
 if [ ! -d ".venv" ]; then
-    echo "❌ 虚拟环境不存在，请先运行 ./scripts/setup.sh"
-    exit 1
+  echo "❌ 虚拟环境不存在，请先运行 ./scripts/setup.sh"
+  exit 1
 fi
 
 # 激活虚拟环境
 if [ "$IS_WINDOWS" = true ]; then
-    source ".venv/Scripts/activate"
+  source ".venv/Scripts/activate"
 else
-    source ".venv/bin/activate"
+  source ".venv/bin/activate"
 fi
 
 # 设置 UV 配置（如果 .env 中有定义）
@@ -48,7 +48,7 @@ echo "✅ 虚拟环境已激活"
 echo "🐍 Python: $(python --version 2>&1)"
 echo "📁 Python 路径: $(which python)"
 if command -v uv &> /dev/null; then
-    echo "🔧 UV 版本: $(uv --version 2>&1)"
+  echo "🔧 UV 版本: $(uv --version 2>&1)"
 fi
 
 # 显示快捷命令

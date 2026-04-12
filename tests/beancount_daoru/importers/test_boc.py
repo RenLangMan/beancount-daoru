@@ -2,6 +2,7 @@ import datetime
 from decimal import Decimal
 
 import pytest
+
 from beancount_daoru.importer import Extra, Metadata, Posting, Transaction
 from beancount_daoru.importers.boc import Parser
 

@@ -77,9 +77,6 @@ python scripts/stats.py stats --payment --mapping
 **--types** 统计交易类型（餐饮美食、充值缴费等）、交易状态（交易成功、交易关闭等）和收支方向（支出、收入、不计收支）。
 
 **--integrity** 检查：
-- 单 posting 交易：可能缺少对冲账户（Expenses 等）
-- 无 posting 交易：异常，需排查
-- 不平衡交易：所有 posting 金额之和不为 0
 
 **--payment** 从原始 CSV 中统计收付款方式，分"原始（含优惠变体）"和"清理后（去掉 & 后缀）"两组。
 
@@ -268,7 +265,7 @@ python scripts/stats.py clean
 
 ## 典型工作流
 
-```
+```bash
 1. 导入账单
    cd beancount-data
    python fava_import_config.py extract downloads/ -o imported_transactions.bean

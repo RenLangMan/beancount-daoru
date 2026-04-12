@@ -34,8 +34,9 @@ import shutil
 import subprocess
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import TypedDict
 
 # Windows 兼容: 确保 stdout 支持 UTF-8
 if sys.platform == "win32":
@@ -76,7 +77,7 @@ def print_section(title: str) -> None:
     print(f"{CYAN}{'─' * 50}{NC}")
 
 
-def print_kv(key: str, value: object, indent: int = 2) -> None:
+def print_kv(key: str, value: str, indent: int = 2) -> None:
     """打印键值对.
 
     Args:
@@ -114,6 +115,49 @@ def print_ok(msg: str) -> None:
     print(f"{GREEN}[OK]{NC} {msg}")
 
 
+# ==================== 类型定义 ====================
+class PostingDict(TypedDict):
+    """Posting 数据结构."""
+
+    account: str
+    amount: float
+    currency: str
+
+
+class TransactionDict(TypedDict):
+    """交易数据结构."""
+
+    date: str
+    flag: str
+    payee: str
+    narration: str
+    postings: list[PostingDict]
+    metadata: dict[str, str]
+    line: int
+
+
+class AccountStatsDict(TypedDict):
+    """账户统计数据结构."""
+
+    count: int
+    total: float
+    currency: str
+
+
+class CategoryStatsDict(TypedDict):
+    """类别统计数据结构."""
+
+    count: int
+    total: float
+
+
+class MappingStatsDict(TypedDict):
+    """映射统计数据结构."""
+
+    count: int
+    methods: set[str]
+
+
 # ==================== 常量定义 ====================
 BALANCE_THRESHOLD = 0.005  # 交易平衡阈值
 MIN_POSTING_COUNT = 2  # 多 posting 交易阈值
@@ -137,9 +181,7 @@ _ENCODING_ORDER = ["utf-8", "gbk", "utf-8-sig", "latin-1"]
 _ALIPAY_ENCODING_ORDER = ["gbk", "utf-8-sig", "utf-8"]
 
 
-def _try_read_with_encoding(
-    path: Path, enc: str
-) -> list[str] | None:
+def _try_read_with_encoding(path: Path, enc: str) -> list[str] | None:
     """尝试用指定编码读取文件.
 
     Args:
@@ -241,7 +283,7 @@ def _read_csv_with_encoding(
     """
     try:
         with csv_file.open(encoding=encoding) as f:
-            for _ in range(skip_lines):
+            for _i in range(skip_lines):
                 f.readline()
             reader = csv.DictReader(f)
             return list(reader)
@@ -271,9 +313,12 @@ def read_alipay_csv(
 
 # ==================== 解析 Beancount 文件 ====================
 def _parse_bean_line(
-    line: str, txn_pattern: re.Pattern[str], meta_pattern: re.Pattern[str],
-    posting_pattern: re.Pattern[str], current_txn: dict[str, object] | None
-) -> tuple[dict[str, object] | None, dict[str, object] | None]:
+    line: str,
+    txn_pattern: re.Pattern[str],
+    meta_pattern: re.Pattern[str],
+    posting_pattern: re.Pattern[str],
+    current_txn: TransactionDict | None,
+) -> tuple[TransactionDict | None, TransactionDict | None]:
     """解析单行 Beancount 内容.
 
     Args:
@@ -286,8 +331,8 @@ def _parse_bean_line(
     Returns:
         (新交易或None, 当前交易或None)
     """
-    new_txn: dict[str, object] | None = None
-    completed: dict[str, object] | None = None
+    new_txn: TransactionDict | None = None
+    completed: TransactionDict | None = None
 
     m = txn_pattern.match(line)
     if m:
@@ -304,9 +349,11 @@ def _parse_bean_line(
                 "line": 0,
             }
     elif current_txn is not None:
-        if not _try_parse_metadata(line, meta_pattern, current_txn) and \
-           not _try_parse_posting(line, posting_pattern, current_txn) and \
-           not (line.strip() == "" and current_txn["postings"]):
+        if (
+            not _try_parse_metadata(line, meta_pattern, current_txn)
+            and not _try_parse_posting(line, posting_pattern, current_txn)
+            and not (line.strip() == "" and current_txn["postings"])
+        ):
             completed = None  # 继续当前交易
         else:
             completed = current_txn if current_txn["postings"] else None
@@ -315,7 +362,7 @@ def _parse_bean_line(
 
 
 def _try_parse_metadata(
-    line: str, pattern: re.Pattern[str], txn: dict[str, object]
+    line: str, pattern: re.Pattern[str], txn: TransactionDict
 ) -> bool:
     """尝试解析元数据行.
 
@@ -335,7 +382,7 @@ def _try_parse_metadata(
 
 
 def _try_parse_posting(
-    line: str, pattern: re.Pattern[str], txn: dict[str, object]
+    line: str, pattern: re.Pattern[str], txn: TransactionDict
 ) -> bool:
     """尝试解析 posting 行.
 
@@ -349,16 +396,17 @@ def _try_parse_posting(
     """
     m = pattern.match(line)
     if m:
-        txn["postings"].append({
+        posting: PostingDict = {
             "account": m.group(1),
             "amount": float(m.group(2).replace(",", "")),
             "currency": m.group(3),
-        })
+        }
+        txn["postings"].append(posting)
         return True
     return False
 
 
-def parse_bean_file(bean_file: Path) -> list[dict[str, object]]:
+def parse_bean_file(bean_file: Path) -> list[TransactionDict]:
     """解析 beancount 文件,提取交易和元数据.
 
     Args:
@@ -367,8 +415,8 @@ def parse_bean_file(bean_file: Path) -> list[dict[str, object]]:
     Returns:
         交易字典列表
     """
-    transactions = []
-    current_txn: dict[str, object] | None = None
+    transactions: list[TransactionDict] = []
+    current_txn: TransactionDict | None = None
 
     if not bean_file.exists():
         print_err(f"文件不存在: {bean_file}")
@@ -403,7 +451,7 @@ def parse_bean_file(bean_file: Path) -> list[dict[str, object]]:
 
 
 def format_txn(
-    txn: dict[str, object],
+    txn: TransactionDict,
     *,
     show_metadata: bool = True,
 ) -> str:
@@ -416,7 +464,7 @@ def format_txn(
     Returns:
         格式化后的交易字符串
     """
-    lines = []
+    lines: list[str] = []
     lines.append(f'{txn["date"]} {txn["flag"]} "{txn["payee"]}" "{txn["narration"]}"')
     if show_metadata:
         for k, v in txn["metadata"].items():
@@ -434,7 +482,7 @@ def cmd_stats(args: argparse.Namespace) -> None:
     Args:
         args: 命令行参数
     """
-    base, bean_file, _, downloads_dir, _ = resolve_paths(args.data_dir)
+    base, bean_file, _, downloads_dir, _config_file = resolve_paths(args.data_dir)
     transactions = parse_bean_file(bean_file)
 
     specific = (
@@ -460,7 +508,7 @@ def cmd_stats(args: argparse.Namespace) -> None:
         _stats_mapping(downloads_dir)
 
 
-def _stats_accounts(transactions: list[dict[str, object]]) -> None:
+def _stats_accounts(transactions: list[TransactionDict]) -> None:
     """统计各账户交易次数和金额.
 
     Args:
@@ -468,11 +516,12 @@ def _stats_accounts(transactions: list[dict[str, object]]) -> None:
     """
     print_title("账户交易统计")
 
-    account_stats = defaultdict(lambda: {"count": 0, "total": 0.0, "currency": "CNY"})
-
+    account_stats: dict[str, AccountStatsDict] = {}
     for txn in transactions:
         for posting in txn["postings"]:
             acc = posting["account"]
+            if acc not in account_stats:
+                account_stats[acc] = {"count": 0, "total": 0.0, "currency": "CNY"}
             account_stats[acc]["count"] += 1
             account_stats[acc]["total"] += posting["amount"]
             account_stats[acc]["currency"] = posting["currency"]
@@ -492,9 +541,11 @@ def _stats_accounts(transactions: list[dict[str, object]]) -> None:
     print(f"\n  {'合计':>6}  {total_amount:>14.2f}  ({total_count} 条 posting)")
 
     print_section("按账户类别汇总")
-    category_stats = defaultdict(lambda: {"count": 0, "total": 0.0})
+    category_stats: dict[str, CategoryStatsDict] = {}
     for acc, data in account_stats.items():
         cat = acc.split(":")[0]
+        if cat not in category_stats:
+            category_stats[cat] = {"count": 0, "total": 0.0}
         category_stats[cat]["count"] += data["count"]
         category_stats[cat]["total"] += data["total"]
 
@@ -505,7 +556,7 @@ def _stats_accounts(transactions: list[dict[str, object]]) -> None:
             print_kv(cat, f"{d['count']}次, {sign}{d['total']:.2f} CNY")
 
 
-def _stats_types(transactions: list[dict[str, object]]) -> None:
+def _stats_types(transactions: list[TransactionDict]) -> None:
     """统计交易类型和状态.
 
     Args:
@@ -513,7 +564,7 @@ def _stats_types(transactions: list[dict[str, object]]) -> None:
     """
     print_title("交易类型与状态统计")
 
-    type_counter = Counter()
+    type_counter: Counter[str] = Counter()
     for txn in transactions:
         t = txn["metadata"].get("type", "未知")
         type_counter[t] += 1
@@ -522,7 +573,7 @@ def _stats_types(transactions: list[dict[str, object]]) -> None:
     for t, count in type_counter.most_common():
         print_kv(t, f"{count}次")
 
-    status_counter = Counter()
+    status_counter: Counter[str] = Counter()
     for txn in transactions:
         s = txn["metadata"].get("status", "未知")
         status_counter[s] += 1
@@ -531,7 +582,7 @@ def _stats_types(transactions: list[dict[str, object]]) -> None:
     for s, count in status_counter.most_common():
         print_kv(s, f"{count}次")
 
-    dc_counter = Counter()
+    dc_counter: Counter[str] = Counter()
     for txn in transactions:
         dc = txn["metadata"].get("dc", "未知")
         dc_counter[dc] += 1
@@ -541,7 +592,7 @@ def _stats_types(transactions: list[dict[str, object]]) -> None:
         print_kv(dc, f"{count}次")
 
 
-def _stats_integrity(transactions: list[dict[str, object]], bean_file: Path) -> None:
+def _stats_integrity(transactions: list[TransactionDict], bean_file: Path) -> None:
     """检查交易完整性.
 
     Args:
@@ -551,7 +602,7 @@ def _stats_integrity(transactions: list[dict[str, object]], bean_file: Path) -> 
     print_title("交易完整性检查")
 
     total = len(transactions)
-    print_kv("总交易数", total)
+    print_kv("总交易数", str(total))
 
     single_posting = [txn for txn in transactions if len(txn["postings"]) == 1]
     print_kv(
@@ -571,7 +622,7 @@ def _stats_integrity(transactions: list[dict[str, object]], bean_file: Path) -> 
     ]
     print_kv(f"多 posting 交易(>{MIN_POSTING_COUNT})", f"{len(multi_posting)}条")
 
-    unbalanced = []
+    unbalanced: list[tuple[TransactionDict, float]] = []
     for txn in transactions:
         if txn["postings"]:
             total_amount = sum(p["amount"] for p in txn["postings"])
@@ -592,7 +643,7 @@ def _stats_integrity(transactions: list[dict[str, object]], bean_file: Path) -> 
     if bean_file.exists():
         content, _ = read_file_auto(bean_file)
         if content:
-            print_kv("文件总行数", len(content))
+            print_kv("文件总行数", str(len(content)))
 
     if transactions:
         dates = [txn["date"] for txn in transactions]
@@ -614,8 +665,8 @@ def _stats_payment(downloads_dir: Path) -> None:
         print_err("无法读取 CSV 文件")
         return
 
-    payment_methods = Counter()
-    payment_methods_clean = Counter()
+    payment_methods: Counter[str] = Counter()
+    payment_methods_clean: Counter[str] = Counter()
 
     for row in rows:
         method = row.get("收/付款方式", "")
@@ -658,7 +709,7 @@ def _map_payment_method(clean: str) -> str | None:
     return None
 
 
-def _stats_mapping(downloads_dir: Path) -> None:
+def _stats_mapping(downloads_dir: Path) -> None:  # noqa: C901, PLR0912
     """对比原始支付方式和映射账户."""
     csv_file = find_alipay_csv(downloads_dir)
     if not csv_file:
@@ -673,7 +724,7 @@ def _stats_mapping(downloads_dir: Path) -> None:
         print_err("无法读取 CSV 文件")
         return
 
-    stats = defaultdict(lambda: {"count": 0, "methods": set()})
+    stats: dict[str, MappingStatsDict] = {}
 
     for row in rows:
         method = row.get("收/付款方式", "")
@@ -684,9 +735,13 @@ def _stats_mapping(downloads_dir: Path) -> None:
         account = _map_payment_method(clean)
 
         if account:
+            if account not in stats:
+                stats[account] = {"count": 0, "methods": set()}
             stats[account]["count"] += 1
             stats[account]["methods"].add(method)
         else:
+            if "⚠ 未映射" not in stats:
+                stats["⚠ 未映射"] = {"count": 0, "methods": set()}
             stats["⚠ 未映射"]["count"] += 1
             stats["⚠ 未映射"]["methods"].add(method)
 
@@ -706,7 +761,7 @@ def _stats_mapping(downloads_dir: Path) -> None:
 
 # ==================== 子命令: view ====================
 def _display_transactions(
-    subset: list[dict[str, object]],
+    subset: list[TransactionDict],
     title: str,
     *,
     brief: bool = False,
@@ -730,7 +785,7 @@ def cmd_view(args: argparse.Namespace) -> None:
     Args:
         args: 命令行参数
     """
-    _base, bean_file, _, _, _ = resolve_paths(args.data_dir)
+    _base, bean_file, _, _, _config_file = resolve_paths(args.data_dir)
     transactions = parse_bean_file(bean_file)
 
     if not transactions:
@@ -738,29 +793,33 @@ def cmd_view(args: argparse.Namespace) -> None:
         return
 
     brief = not args.brief
+    head_arg: int | None = args.head
+    tail_arg: int | None = args.tail
+    date_arg: str | None = args.date
+    date_range_arg: str | None = args.date_range
 
-    if args.head:
+    if head_arg:
         _display_transactions(
-            transactions[: args.head],
-            f"前 {args.head} 条交易",
+            transactions[:head_arg],
+            f"前 {head_arg} 条交易",
             brief=brief,
         )
-    elif args.tail:
-        subset = transactions[-args.tail :]
+    elif tail_arg:
+        subset = transactions[-tail_arg:]
         _display_transactions(
             subset,
             f"最后 {len(subset)} 条交易",
             brief=brief,
         )
-    elif args.date:
-        filtered = [t for t in transactions if t["date"] == args.date]
+    elif date_arg:
+        filtered = [t for t in transactions if t["date"] == date_arg]
         _display_transactions(
             filtered,
-            f"日期 {args.date} 的交易 ({len(filtered)}条)",
+            f"日期 {date_arg} 的交易 ({len(filtered)}条)",
             brief=brief,
         )
-    elif args.date_range:
-        parts = args.date_range.split(",")
+    elif date_range_arg:
+        parts = date_range_arg.split(",")
         if len(parts) == DATE_RANGE_PARTS:
             start, end = parts
             filtered = [t for t in transactions if start <= t["date"] <= end]
@@ -775,7 +834,7 @@ def cmd_view(args: argparse.Namespace) -> None:
         _display_overview(transactions)
 
 
-def _display_overview(transactions: list[dict[str, object]]) -> None:
+def _display_overview(transactions: list[TransactionDict]) -> None:
     """显示交易概览.
 
     Args:
@@ -784,10 +843,9 @@ def _display_overview(transactions: list[dict[str, object]]) -> None:
     print_title(f"交易概览 (共 {len(transactions)} 条)")
     for txn in transactions:
         postings_str = ", ".join(
-            f"{p['account'].split(':')[-1]} {p['amount']:+.2f}"
-            for p in txn["postings"]
+            f"{p['account'].split(':')[-1]} {p['amount']:+.2f}" for p in txn["postings"]
         )
-        txn["metadata"].get("dc", "")
+        _ = txn["metadata"].get("dc", "")
         type_ = txn["metadata"].get("type", "")
         print(f"  {txn['date']} {txn['payee']:<20s}  {type_:<8s}  {postings_str}")
 
@@ -799,7 +857,7 @@ def cmd_search(args: argparse.Namespace) -> None:
     Args:
         args: 命令行参数
     """
-    _base, bean_file, _, _, _ = resolve_paths(args.data_dir)
+    _base, bean_file, _, _, _config_file = resolve_paths(args.data_dir)
     transactions = parse_bean_file(bean_file)
 
     if not transactions:
@@ -811,26 +869,25 @@ def cmd_search(args: argparse.Namespace) -> None:
         print_warn("请提供搜索条件: --account, --payee 或 --type")
         return
 
-    results = [
-        txn for txn in transactions
-        if _matches_criteria(txn, search_criteria)
-    ]
+    results = [txn for txn in transactions if _matches_criteria(txn, search_criteria)]
 
     if not results:
         print_warn("未找到匹配的交易")
         return
 
-    label = args.account or args.payee or args.type
-    print_title(f"搜索结果: {label} ({len(results)}条)")
+    label: str | None = args.account or args.payee or args.type
+    label_str = label or ""
+    print_title(f"搜索结果: {label_str} ({len(results)}条)")
 
     # 金额汇总
-    total_by_account = defaultdict(float)
+    total_by_account: defaultdict[str, float] = defaultdict(float)
     for txn in results:
         for p in txn["postings"]:
             total_by_account[p["account"]] += p["amount"]
 
+    brief_arg = args.brief
     for txn in results:
-        print(format_txn(txn, show_metadata=not args.brief))
+        print(format_txn(txn, show_metadata=not brief_arg))
         print()
 
     print_section("金额汇总")
@@ -848,17 +905,21 @@ def _get_search_criteria(args: argparse.Namespace) -> dict[str, str] | None:
     Returns:
         包含搜索条件的字典, 或 None
     """
-    if args.account:
-        return {"type": "account", "value": args.account}
-    if args.payee:
-        return {"type": "payee", "value": args.payee}
-    if args.type:
-        return {"type": "type", "value": args.type}
+    account_arg: str | None = args.account
+    payee_arg: str | None = args.payee
+    type_arg: str | None = args.type
+
+    if account_arg:
+        return {"type": "account", "value": account_arg}
+    if payee_arg:
+        return {"type": "payee", "value": payee_arg}
+    if type_arg:
+        return {"type": "type", "value": type_arg}
     return None
 
 
 def _matches_criteria(
-    txn: dict[str, object],
+    txn: TransactionDict,
     criteria: dict[str, str],
 ) -> bool:
     """检查交易是否匹配搜索条件.
@@ -891,9 +952,10 @@ def cmd_check(args: argparse.Namespace) -> None:
     Args:
         args: 命令行参数
     """
-    _base, bean_file, main_bean, _, _ = resolve_paths(args.data_dir)
+    _base, bean_file, main_bean, _, _config_file = resolve_paths(args.data_dir)
+    main_bean_arg = args.main
 
-    target = main_bean if args.main else bean_file
+    target = main_bean if main_bean_arg else bean_file
     if not target.exists():
         print_err(f"文件不存在: {target}")
         return
@@ -907,7 +969,7 @@ def cmd_check(args: argparse.Namespace) -> None:
     print_title(f"Beancount 语法检查: {target.name}")
 
     result = subprocess.run(
-        [bean_check_cmd, str(target)],
+        [bean_check_cmd, str(target)],  # noqa: S603
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -930,9 +992,10 @@ def cmd_report(args: argparse.Namespace) -> None:
     Args:
         args: 命令行参数
     """
-    _base, bean_file, main_bean, _, _ = resolve_paths(args.data_dir)
+    _base, bean_file, main_bean, _, _config_file = resolve_paths(args.data_dir)
+    main_bean_arg = args.main
 
-    target = main_bean if args.main else bean_file
+    target = main_bean if main_bean_arg else bean_file
     if not target.exists():
         print_err(f"文件不存在: {target}")
         return
@@ -947,7 +1010,7 @@ def cmd_report(args: argparse.Namespace) -> None:
     print_title(f"Beancount 报表: {report_type}")
 
     result = subprocess.run(
-        [bean_report_cmd, str(target), report_type],
+        [bean_report_cmd, str(target), report_type],  # noqa: S603
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -966,7 +1029,8 @@ def cmd_merge(args: argparse.Namespace) -> None:
     Args:
         args: 命令行参数
     """
-    _base, bean_file, main_bean, _, _ = resolve_paths(args.data_dir)
+    _base, bean_file, main_bean, _, _config_file = resolve_paths(args.data_dir)
+    include_arg = args.include
 
     if not bean_file.exists():
         print_err(f"导入文件不存在: {bean_file}")
@@ -976,7 +1040,7 @@ def cmd_merge(args: argparse.Namespace) -> None:
         print_err(f"主账本不存在: {main_bean}")
         return
 
-    if args.include:
+    if include_arg:
         print_title("合并到主账本 (include 方式)")
 
         # 检查是否已经引用
@@ -1001,7 +1065,7 @@ def cmd_merge(args: argparse.Namespace) -> None:
             print("已取消")
             return
 
-        import_content, _ = read_file_auto(bean_file)
+        import_content, _enc = read_file_auto(bean_file)
         if import_content:
             with main_bean.open("a", encoding="utf-8") as f:
                 f.write("\n;; 以下为导入的交易记录\n")
@@ -1016,7 +1080,9 @@ def cmd_archive(args: argparse.Namespace) -> None:
     Args:
         args: 命令行参数
     """
-    base, _, _, downloads_dir, _config_file = resolve_paths(args.data_dir)
+    base, _bean_file, _main_bean, downloads_dir, _config_file = resolve_paths(
+        args.data_dir
+    )
 
     if not downloads_dir.exists():
         print_err("downloads 目录不存在")
@@ -1036,10 +1102,10 @@ def cmd_archive(args: argparse.Namespace) -> None:
         dest = archive_dir / csv_file.name
         if dest.exists():
             # 添加时间戳避免覆盖
-            ts = datetime.now(tz=datetime.timezone.utc).strftime("%Y%m%d_%H%M%S")
+            ts = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
             dest = archive_dir / f"{csv_file.stem}_{ts}{csv_file.suffix}"
 
-        shutil.move(str(csv_file), str(dest))
+        _ = shutil.move(str(csv_file), str(dest))
         print_ok(f"{csv_file.name} -> {dest.relative_to(base)}")
 
     print(f"\n已归档 {len(csv_files)} 个文件到 {archive_dir.relative_to(base)}/")
@@ -1052,7 +1118,7 @@ def cmd_clean(args: argparse.Namespace) -> None:
     Args:
         args: 命令行参数
     """
-    _base, bean_file, _, _, _ = resolve_paths(args.data_dir)
+    _base, bean_file, _, _, _config_file = resolve_paths(args.data_dir)
 
     if not bean_file.exists():
         print_err(f"文件不存在: {bean_file}")
@@ -1164,7 +1230,8 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    if args.command is None:
+    command_arg: str | None = args.command
+    if command_arg is None:
         # 默认运行 stats --all
         args.command = "stats"
         args.all = True
@@ -1174,7 +1241,7 @@ def main() -> None:
         args.integrity = False
         args.mapping = False
 
-    commands = {
+    commands: dict[str, callable[[argparse.Namespace], None]] = {
         "stats": cmd_stats,
         "view": cmd_view,
         "search": cmd_search,

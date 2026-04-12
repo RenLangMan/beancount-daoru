@@ -1,6 +1,7 @@
 from textwrap import dedent
 
 import beangulp
+
 from beancount_daoru import (
     AlipayImporter,
     PathToName,
