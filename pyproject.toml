@@ -28,6 +28,7 @@ repository = "https://github.com/aqni/beancount-daoru"
 
 [project.optional-dependencies]
 llm = ["diskcache>=5.6.3", "openai>=2.11.0", "usearch>=2.21.0"]
+fava = ["fava>=1.30"]                                           # 可选依赖
 
 [dependency-groups]
 dev = [
@@ -38,6 +39,7 @@ dev = [
     "ruff>=0.14.7",
     "debugpy>=1.8.18",
     "basedpyright>=1.36.1",
+    "pre-commit>=4.5.1",
 ]
 
 [tool.pytest.ini_options]
@@ -53,6 +55,7 @@ lint.extend-ignore = ["COM812", "RUF001"]
 "tests/*" = ["D", "S101", "S603", "RUF001"]
 "examples/*" = ["D", "INP001"]
 "tests/**/*.py" = ["ERA001", "SLF001"]      # 允许测试文件中的注释
+"scripts/*" = ["T201", "PLC0415", "EXE001", "TRY300"]  # 脚本允许使用 print, 局部 import 和 try 中的 return
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -65,5 +68,27 @@ allowedUntypedLibraries = [
     "pyexcel",
     "usearch",
 ]
+
+# Shell 脚本格式化配置 (shfmt)
+# 文档: https://github.com/mvdan/sh
+[tool.shfmt]
+indent = 2                    # 缩进 2 空格
+binary_next_line = true      # 二元运算符换行
+switch_case_indent = true    # switch case 缩进
+space_redirects = true       # 空格重定向
+keep_padding = true          # 保持对齐
+
+# TOML 格式化配置 (toml-sort)
+# 文档: https://pypi.org/project/toml-sort/
+[tool.toml-sort]
+all = true                   # 排序所有表和键
+in_place = true              # 原地修改
+spaces_indent_inline_array = 2
+
+# Markdown 格式化配置 (mdformat)
+# 文档: https://mdformat.readthedocs.io/
+[tool.mdformat]
+wrap = "keep"               # 保持现有换行
+number = false              # 不添加行号
 
 # See https://packaging.python.org for more information on Python project metadata

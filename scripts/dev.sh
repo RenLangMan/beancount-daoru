@@ -176,6 +176,26 @@ run_ruff_format() {
     print_success "代码格式正确"
 }
 
+run_shellcheck() {
+    print_step "ShellCheck 脚本检查..."
+    if command -v shellcheck &> /dev/null; then
+        shellcheck scripts/*.sh || true
+        print_success "ShellCheck 检查完成"
+    else
+        print_warn "shellcheck 未安装，跳过 Shell 脚本检查"
+    fi
+}
+
+run_shfmt() {
+    print_step "shfmt 格式化检查..."
+    if command -v shfmt &> /dev/null; then
+        shfmt -d scripts/*.sh
+        print_success "Shell 脚本格式正确"
+    else
+        print_warn "shfmt 未安装，跳过格式化检查"
+    fi
+}
+
 run_basedpyright() {
     print_step "Basedpyright 类型检查..."
     if uv run basedpyright --version &> /dev/null; then
@@ -192,16 +212,27 @@ run_all_checks() {
     echo
     run_ruff_format
     echo
+    run_shellcheck
+    echo
+    run_shfmt
+    echo
     run_basedpyright
     print_success "所有检查通过！"
 }
 
 fix_code() {
     print_title "自动修复代码问题"
-    print_step "格式化代码..."
+    print_step "格式化 Python 代码..."
     uv run ruff format .
-    print_step "修复代码问题..."
+    print_step "修复 Python 问题..."
     uv run ruff check . --fix
+    print_step "格式化 Shell 脚本..."
+    if command -v shfmt &> /dev/null; then
+        shfmt -w scripts/*.sh
+        print_success "Shell 脚本格式化完成"
+    else
+        print_warn "shfmt 未安装，跳过 Shell 脚本格式化"
+    fi
     print_success "代码修复完成"
 }
 
@@ -338,6 +369,26 @@ clean_all() {
     fi
 }
 
+# ==================== Pre-commit ====================
+run_precommit_install() {
+    print_title "安装 pre-commit hooks"
+    bash "${SCRIPT_DIR}/setup_precommit.sh"
+    print_success "pre-commit 安装完成"
+}
+
+run_precommit() {
+    print_title "运行 pre-commit 检查"
+    if command -v pre-commit &> /dev/null; then
+        pre-commit run --all-files
+        print_success "pre-commit 检查完成"
+    else
+        print_warn "pre-commit 未安装"
+        print_info "运行: ./scripts/dev.sh precommit-install"
+        return 1
+    fi
+}
+}
+
 # ==================== 环境信息 ====================
 show_status() {
     print_title "当前环境状态"
@@ -392,6 +443,8 @@ show_aliases() {
     echo "  ./scripts/dev.sh lint              # 仅运行 Ruff 检查"
     echo "  ./scripts/dev.sh format            # 仅格式化代码"
     echo "  ./scripts/dev.sh type              # 仅类型检查"
+    echo "  ./scripts/dev.sh shellcheck        # 仅 Shell 脚本检查"
+    echo "  ./scripts/dev.sh shfmt             # 仅 Shell 格式化检查"
     echo
     echo -e "${CYAN}测试:${NC}"
     echo "  ./scripts/dev.sh test              # 运行测试"
@@ -413,6 +466,8 @@ show_aliases() {
     echo -e "${CYAN}开发流水线:${NC}"
     echo "  ./scripts/dev.sh pipeline          # 运行完整开发流水线"
     echo "  ./scripts/dev.sh ci                # CI 检查（无修复）"
+    echo "  ./scripts/dev.sh precommit-install # 安装 pre-commit hooks"
+    echo "  ./scripts/dev.sh precommit         # 运行 pre-commit 检查"
 }
 
 # ==================== 完整流水线 ====================
@@ -600,6 +655,8 @@ case "$1" in
     lint|l)                 run_ruff_check ;;
     format)                 run_ruff_format ;;
     type|ty)                run_basedpyright ;;
+    shellcheck|sc)          run_shellcheck ;;
+    shfmt|sf)               run_shfmt ;;
     
     # 测试
     test|t)                 shift; run_tests "$@" ;;
@@ -618,7 +675,11 @@ case "$1" in
     # 流水线
     pipeline|full)          run_full_pipeline ;;
     ci)                     run_ci_pipeline ;;
-    
+
+    # Pre-commit
+    precommit-install)     run_precommit_install ;;
+    precommit|precommit-run) run_precommit ;;
+
     # 帮助
     alias|aliases)          show_aliases ;;
     help|-h|--help|h)       show_aliases ;;

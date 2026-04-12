@@ -7,6 +7,18 @@
     build: .ide/Dockerfile
     volumes:
       - /root/.cache/uv
+  before_script:
+    # Dockerfile 已包含所有必要工具，此处仅做验证
+    - |
+      echo "🔍 验证工具可用性..."
+      for tool in ruff basedpyright markdownlint-cli2 shellcheck shfmt pre-commit; do
+        if command -v "$tool" &>/dev/null; then
+          echo "✅ $tool: $(command -v $tool)"
+        else
+          echo "⚠️ $tool 未找到"
+        fi
+      done
+    - echo "✅ 环境验证完成"
   stages:
     - name: Checks
       jobs:
@@ -20,32 +32,49 @@
               exit 1
             fi
             echo "✅ PR title 格式正确"
+
         markdownlint:
-          script: markdownlint-cli2 "**/*.md"
+          script: markdownlint-cli2 "**/*.md" --fix
+
         ruff:
           script: |
             uv sync --extra llm --group dev
             uv run ruff check --verbose
             uv run ruff format --check --diff --verbose
+
+        shellcheck:
+          script: |
+            echo "🔍 运行 ShellCheck..."
+            shellcheck scripts/*.sh --severity=warning
+            echo "✅ ShellCheck 检查完成"
+
+        shfmt:
+          script: |
+            echo "🔍 检查 Shell 脚本格式..."
+            shfmt -d scripts/*.sh
+            echo "✅ shfmt 检查完成"
+
         uvlock:
           script: |
             uv lock
             uv lock --check
+
         basedpyright:
           script: |
             uv sync --extra llm --group dev
             uv run basedpyright --verbose
+
     - name: Test
       script: |
         uv sync --extra llm --group dev
         uv run pytest --verbose
 
-# main 分支配置（数组形式）
+# main 分支配置
 main:
   pull_request:
     - *ci-template
 
-# feat/ci 分支配置（数组形式）
+# feat/* 分支配置
 "feat/*":
   push:
     - *ci-template
@@ -72,7 +101,7 @@ main:
           artifacts:
             - dist/
 
-# 云原生开发环境配置（数组形式）
+# 云原生开发环境配置
 $:
   vscode:
     clouddev:
@@ -119,3 +148,10 @@ $:
             echo "📦 安装项目依赖（可能需要几分钟）..."
             uv sync --all-extras --dev --link-mode=copy
             echo "✅ 依赖安装完成"
+
+            # 安装 pre-commit
+            echo "🔧 安装 pre-commit..."
+            uv tool install pre-commit --with pre-commit-uv
+            pre-commit install
+            pre-commit install --hook-type pre-push
+            echo "✅ pre-commit 配置完成"

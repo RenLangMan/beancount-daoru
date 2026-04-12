@@ -231,7 +231,7 @@ currency_mapping={
 - 新导入器实现
 - 测试用例添加
 
-详见 [CONTRIBUTING.md](../CONTRIBUTING.md)
+详见 [CONTRIBUTING.md](../CONTRIBUTING.md) 和 [开发者指南](DEVELOPMENT.md)
 
 ## 许可证
 

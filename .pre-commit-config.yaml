@@ -1,0 +1,79 @@
+repos:
+  # 基础检查和修复
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: ["--fix=auto"]
+
+  # Ruff：代码检查和格式化（替代 flake8, isort, black）
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.3.4
+    hooks:
+      # 运行 ruff 检查并自动修复
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      # 运行 ruff 格式化
+      - id: ruff-format
+
+  # Markdown 检查
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.12.1
+    hooks:
+      - id: markdownlint-cli2
+        args: ["**/*.md", "# node_modules"]
+
+  # # Shell 脚本格式化（shfmt）
+  # - repo: https://github.com/shellcheck-py/shellcheck-py
+  #   rev: v0.11.0.1
+  #   hooks:
+  #     - id: shellcheck
+  #       args: ["--severity=warning"]
+
+  # Shell 脚本格式化和检查
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.13.1-1
+    hooks:
+      - id: shfmt
+        args: [-i, "2", -ci, -sr, -w]
+
+  # 类型检查（可选，运行较慢）
+  - repo: local
+    hooks:
+      - id: basedpyright
+        name: basedpyright
+        entry: uv run basedpyright
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        verbose: true
+
+  # 检查 uv.lock 是否最新
+  - repo: local
+    hooks:
+      - id: uv-lock-check
+        name: uv lock check
+        entry: uv lock --check
+        language: system
+        pass_filenames: false
+        always_run: true
+        verbose: true
+
+  # 测试（可选，运行较慢）
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: uv run pytest
+        language: system
+        pass_filenames: false
+        always_run: false # 手动运行，不自动执行
+        stages: [pre-push] # 只在 pre-push 时运行
+        verbose: true

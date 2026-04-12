@@ -33,7 +33,7 @@
 | 中国银行 | APP导出，全部勾选，APP内下载 | pdf |
 | 交通银行 | APP导出，全部勾选，发送到邮箱 | pdf |
 
-## 使用
+## 快速开始
 
 ### 安装
 
@@ -41,13 +41,22 @@
 pip install beancount-daoru
 ```
 
-如果需要使用 LLM 功能，需要安装额外依赖：
+如果需要使用 LLM 智能分类功能，需要安装额外依赖：
 
 ```shell
 pip install beancount-daoru[llm]
 ```
 
-### 简单用例
+### 5分钟导入第一笔账单
+
+#### 1. 准备账单文件
+
+从支付平台 APP 导出账单（保留原始文件名），例如：
+
+- 支付宝：APP → 账单 → 导出 → 发送到邮箱
+- 微信：APP → 钱包 → 账单 → 导出 → 发送到邮箱
+
+#### 2. 创建导入脚本
 
 最简单的使用方式是创建一个导入配置脚本，例如 `import.py`：
 
@@ -58,17 +67,14 @@ from beancount_daoru import AlipayImporter
 CONFIG = [
     AlipayImporter(
         account_mapping={
-            "your-alipay-account-name": {
+            "your-email@example.com": {  # 你的支付宝账号
                 None: "Assets:Alipay",
                 "余额": "Assets:Alipay:Balance",
                 "余额宝": "Assets:Alipay:YuEBao",
-                "中国银行(xxxx)": "Assets:Bank:BOC",
             }
         },
-        currency_mapping={
-            None: "CNY",
-        },
-    ),
+        currency_mapping={None: "CNY"},
+    )
 ]
 
 if __name__ == "__main__":
@@ -76,22 +82,99 @@ if __name__ == "__main__":
     ingest()
 ```
 
-然后运行 beangulp 命令识别、导入并归档账单文件，例如：
+> **account_mapping 的键如何确定？** 先运行一次 `identify` 命令，工具会提示账单中提取到的账号名。
+
+#### 3. 运行导入
 
 ```shell
-# 识别账单文件
-python import.py identify /path/to/your/bills/dir
-# 导入账单文件
-python import.py extract /path/to/your/bills/dir -o output.beancount
-# 归档账单文件
-python import.py archive /path/to/your/bills/dir -o /path/to/your/archive/dir
+# 识别账单文件（确认工具能正确识别）
+python import.py identify /path/to/bills
+
+# 导入账单数据到 Beancount 文件
+python import.py extract /path/to/bills -o output.beancount
+
+# 归档已导入的账单文件（避免重复导入）
+python import.py archive /path/to/bills -o /path/to/archive
 ```
 
-另一种方法是在 Fava 中进行可视化导入，需要在主账本中添加`import-config` 和 `import-dirs` 这两个配置，具体参阅
-[Fava 帮助文档](https://fava.pythonanywhere.com/example-beancount-file/help/import)。
+#### 4. 在 Fava 中查看
 
-**工具通过文件名识别账单，导入时务必保留账单原始文件名**。
-更多使用用例可参考源码中示例。
+```shell
+pip install fava
+fava output.beancount
+```
+
+或在 Fava 中进行可视化导入，在主账本中添加：
+
+```beancount
+option "import-config" "/path/to/import.py"
+option "import-dirs" "/path/to/bills"
+```
+
+具体参阅 [Fava 帮助文档](https://fava.pythonanywhere.com/example-beancount-file/help/import)。
+
+> ⚠️ **重要**：工具通过文件名识别账单，导入时务必保留账单原始文件名。
+
+### 高级用法
+
+#### 多源账单配置
+
+完整的多源账单配置示例可参考 [`examples/import_only/import.py`](examples/import_only/import.py)。
+
+#### LLM 智能分类
+
+使用 LLM 自动预测交易中缺失的会计科目：
+
+```python
+from beancount_daoru import PredictMissingPosting
+
+HOOKS = [
+    PredictMissingPosting(
+        chat_model_settings={
+            "name": "your-chat-model",
+            "base_url": "http://localhost:8000/v1",
+            "api_key": "your-api-key",
+        },
+        embed_model_settings={
+            "name": "your-embed-model",
+            "base_url": "http://localhost:8001/v1",
+            "api_key": "your-api-key",
+        },
+    ),
+]
+
+if __name__ == "__main__":
+    ingest = beangulp.Ingest(CONFIG, HOOKS)
+    ingest()
+```
+
+完整示例可参考 [`examples/predict/import.py`](examples/predict/import.py)。
+
+#### 账户映射说明
+
+`account_mapping` 是一个两级字典：
+
+```python
+account_mapping={
+    "源账号名": {              # 第1级: 从账单中提取的账号名
+        None: "Assets:Default", # 特殊键 None: 归档文件夹账户
+        "余额": "Assets:Cash",  # 第2级: 支付方式 → Beancount 账户
+        "信用卡": "Liabilities:CreditCard",
+    }
+}
+```
+
+`currency_mapping` 控制货币转换：
+
+```python
+currency_mapping={
+    None: "CNY",    # 默认货币
+    "¥": "CNY",     # 符号映射
+    "USD": "USD",   # 外币支持
+}
+```
+
+📖 更多文档请参考 [项目文档](docs/index.md) | 🛠️ 开发者请参考 [开发者指南](docs/DEVELOPMENT.md)
 
 ## 延伸
 
