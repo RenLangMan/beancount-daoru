@@ -10,16 +10,16 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # 检测操作系统
 case "$OSTYPE" in
-  msys* | cygwin* | win32* | mingw*)
-    IS_WINDOWS=true
-    VENV_BIN="Scripts"
-    ;;
-  *)
-    IS_WINDOWS=false
-    # VENV_BIN is used on Windows only, defined here for consistency
-    # shellcheck disable=SC2034
-    VENV_BIN="bin"
-    ;;
+msys* | cygwin* | win32* | mingw*)
+  IS_WINDOWS=true
+  VENV_BIN="Scripts"
+  ;;
+*)
+  IS_WINDOWS=false
+  # VENV_BIN is used on Windows only, defined here for consistency
+  # shellcheck disable=SC2034
+  VENV_BIN="bin"
+  ;;
 esac
 
 # shellcheck source=/dev/null
@@ -52,7 +52,7 @@ fi
 echo "✅ 虚拟环境已激活"
 echo "🐍 Python: $(python --version 2>&1)"
 echo "📁 Python 路径: $(which python)"
-if command -v uv &> /dev/null; then
+if command -v uv &>/dev/null; then
   echo "🔧 UV 版本: $(uv --version 2>&1)"
 fi
 

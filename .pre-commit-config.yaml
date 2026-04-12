@@ -14,7 +14,7 @@ repos:
 
   # Ruff：代码检查和格式化（替代 flake8, isort, black）
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.3.4
+    rev: v0.14.7
     hooks:
       # 运行 ruff 检查并自动修复
       - id: ruff
@@ -22,19 +22,34 @@ repos:
       # 运行 ruff 格式化
       - id: ruff-format
 
-  # Markdown 检查
+  # Markdown 检查 (markdownlint)
   - repo: https://github.com/DavidAnson/markdownlint-cli2
     rev: v0.12.1
     hooks:
       - id: markdownlint-cli2
         args: ["**/*.md", "# node_modules"]
 
-  # # Shell 脚本格式化（shfmt）
-  # - repo: https://github.com/shellcheck-py/shellcheck-py
-  #   rev: v0.11.0.1
-  #   hooks:
-  #     - id: shellcheck
-  #       args: ["--severity=warning"]
+  # Markdown 格式化 (mdformat)
+  - repo: https://github.com/executablebooks/mdformat
+    rev: 0.7.19
+    hooks:
+      - id: mdformat
+        additional_dependencies:
+          - mdformat-gfm
+          - mdformat-frontmatter
+        args: [--wrap, "keep"]
+        exclude: |
+          (?x)^(
+              CHANGELOG.md |
+              LICENSE.md
+          )$
+
+  # Shell 脚本检查
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        args: ["--severity=warning"]
 
   # Shell 脚本格式化和检查
   - repo: https://github.com/scop/pre-commit-shfmt
@@ -43,7 +58,7 @@ repos:
       - id: shfmt
         args: [-i, "2", -ci, -sr, -w]
 
-  # 类型检查（可选，运行较慢）
+  # 类型检查
   - repo: local
     hooks:
       - id: basedpyright
@@ -66,7 +81,7 @@ repos:
         always_run: true
         verbose: true
 
-  # 测试（可选，运行较慢）
+  # 测试（pre-push 时运行）
   - repo: local
     hooks:
       - id: pytest
