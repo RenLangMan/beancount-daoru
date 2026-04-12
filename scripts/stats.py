@@ -36,7 +36,51 @@ import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TypedDict
+from typing import TypedDict, cast
+
+
+# ==================== 类型定义 ====================
+class PostingDict(TypedDict):
+    """Posting 数据结构."""
+
+    account: str
+    amount: float
+    currency: str
+
+
+class TransactionDict(TypedDict):
+    """交易数据结构."""
+
+    date: str
+    flag: str
+    payee: str
+    narration: str
+    postings: list[PostingDict]
+    metadata: dict[str, str]
+    line: int
+
+
+class AccountStatsDict(TypedDict):
+    """账户统计数据结构."""
+
+    count: int
+    total: float
+    currency: str
+
+
+class CategoryStatsDict(TypedDict):
+    """类别统计数据结构."""
+
+    count: int
+    total: float
+
+
+class MappingStatsDict(TypedDict):
+    """映射统计数据结构."""
+
+    count: int
+    methods: set[str]
+
 
 # Windows 兼容: 确保 stdout 支持 UTF-8
 if sys.platform == "win32":
@@ -115,49 +159,6 @@ def print_ok(msg: str) -> None:
     print(f"{GREEN}[OK]{NC} {msg}")
 
 
-# ==================== 类型定义 ====================
-class PostingDict(TypedDict):
-    """Posting 数据结构."""
-
-    account: str
-    amount: float
-    currency: str
-
-
-class TransactionDict(TypedDict):
-    """交易数据结构."""
-
-    date: str
-    flag: str
-    payee: str
-    narration: str
-    postings: list[PostingDict]
-    metadata: dict[str, str]
-    line: int
-
-
-class AccountStatsDict(TypedDict):
-    """账户统计数据结构."""
-
-    count: int
-    total: float
-    currency: str
-
-
-class CategoryStatsDict(TypedDict):
-    """类别统计数据结构."""
-
-    count: int
-    total: float
-
-
-class MappingStatsDict(TypedDict):
-    """映射统计数据结构."""
-
-    count: int
-    methods: set[str]
-
-
 # ==================== 常量定义 ====================
 BALANCE_THRESHOLD = 0.005  # 交易平衡阈值
 MIN_POSTING_COUNT = 2  # 多 posting 交易阈值
@@ -173,7 +174,7 @@ _TXN_PATTERN = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(\*)\s+\"(.+?)\"\s+\"(.+?)\""
 _META_PATTERN = re.compile(r"^\s+(\w+):\s+\"(.+?)\"")
 _POSTING_PATTERN = re.compile(
     r"^\s+((?:Assets|Liabilities|Expenses|Income|Equity):\S+)"
-    r"\s+(-?[\d,]+\.\d+)\s+(\w+)"
+    + r"\s+(-?[\d,]+\.\d+)\s+(\w+)"
 )
 
 # ==================== 通用工具 ====================
@@ -482,12 +483,16 @@ def cmd_stats(args: argparse.Namespace) -> None:
     Args:
         args: 命令行参数
     """
-    base, bean_file, _, downloads_dir, _config_file = resolve_paths(args.data_dir)
+    data_dir: str = cast("str", args.data_dir)
+    base, bean_file, _, downloads_dir, _config_file = resolve_paths(data_dir)
     transactions = parse_bean_file(bean_file)
 
-    specific = (
-        args.accounts or args.payment or args.types or args.integrity or args.mapping
-    )
+    accounts: bool = cast("bool", args.accounts)
+    payment: bool = cast("bool", args.payment)
+    types: bool = cast("bool", args.types)
+    integrity: bool = cast("bool", args.integrity)
+    mapping: bool = cast("bool", args.mapping)
+    specific = accounts or payment or types or integrity or mapping
     run_all = not specific
 
     print(f"\n{BOLD}Beancount 导入统计{NC}")
@@ -496,15 +501,15 @@ def cmd_stats(args: argparse.Namespace) -> None:
     if transactions:
         print(f"  交易数量: {len(transactions)}")
 
-    if run_all or args.accounts:
+    if run_all or accounts:
         _stats_accounts(transactions)
-    if run_all or args.types:
+    if run_all or types:
         _stats_types(transactions)
-    if run_all or args.integrity:
+    if run_all or integrity:
         _stats_integrity(transactions, bean_file)
-    if run_all or args.payment:
+    if run_all or payment:
         _stats_payment(downloads_dir)
-    if run_all or args.mapping:
+    if run_all or mapping:
         _stats_mapping(downloads_dir)
 
 
@@ -785,18 +790,20 @@ def cmd_view(args: argparse.Namespace) -> None:
     Args:
         args: 命令行参数
     """
-    _base, bean_file, _, _, _config_file = resolve_paths(args.data_dir)
+    data_dir: str = cast("str", args.data_dir)
+    _base, bean_file, _, _, _config_file = resolve_paths(data_dir)
     transactions = parse_bean_file(bean_file)
 
     if not transactions:
         print_err("未找到任何交易记录")
         return
 
-    brief = not args.brief
-    head_arg: int | None = args.head
-    tail_arg: int | None = args.tail
-    date_arg: str | None = args.date
-    date_range_arg: str | None = args.date_range
+    brief_arg: bool = cast("bool", args.brief)
+    brief = not brief_arg
+    head_arg: int | None = cast("int | None", args.head)
+    tail_arg: int | None = cast("int | None", args.tail)
+    date_arg: str | None = cast("str | None", args.date)
+    date_range_arg: str | None = cast("str | None", args.date_range)
 
     if head_arg:
         _display_transactions(
@@ -819,9 +826,10 @@ def cmd_view(args: argparse.Namespace) -> None:
             brief=brief,
         )
     elif date_range_arg:
-        parts = date_range_arg.split(",")
+        parts: list[str] = date_range_arg.split(",")
         if len(parts) == DATE_RANGE_PARTS:
-            start, end = parts
+            start: str = parts[0]
+            end: str = parts[1]
             filtered = [t for t in transactions if start <= t["date"] <= end]
             _display_transactions(
                 filtered,
@@ -857,7 +865,8 @@ def cmd_search(args: argparse.Namespace) -> None:
     Args:
         args: 命令行参数
     """
-    _base, bean_file, _, _, _config_file = resolve_paths(args.data_dir)
+    data_dir: str = cast("str", args.data_dir)
+    _base, bean_file, _, _, _config_file = resolve_paths(data_dir)
     transactions = parse_bean_file(bean_file)
 
     if not transactions:
@@ -875,7 +884,10 @@ def cmd_search(args: argparse.Namespace) -> None:
         print_warn("未找到匹配的交易")
         return
 
-    label: str | None = args.account or args.payee or args.type
+    account: str | None = cast("str | None", args.account)
+    payee: str | None = cast("str | None", args.payee)
+    type_: str | None = cast("str | None", args.type)
+    label = account or payee or type_
     label_str = label or ""
     print_title(f"搜索结果: {label_str} ({len(results)}条)")
 
@@ -885,7 +897,7 @@ def cmd_search(args: argparse.Namespace) -> None:
         for p in txn["postings"]:
             total_by_account[p["account"]] += p["amount"]
 
-    brief_arg = args.brief
+    brief_arg: bool = cast("bool", args.brief)
     for txn in results:
         print(format_txn(txn, show_metadata=not brief_arg))
         print()
@@ -905,9 +917,9 @@ def _get_search_criteria(args: argparse.Namespace) -> dict[str, str] | None:
     Returns:
         包含搜索条件的字典, 或 None
     """
-    account_arg: str | None = args.account
-    payee_arg: str | None = args.payee
-    type_arg: str | None = args.type
+    account_arg: str | None = getattr(args, "account", None)
+    payee_arg: str | None = getattr(args, "payee", None)
+    type_arg: str | None = getattr(args, "type", None)
 
     if account_arg:
         return {"type": "account", "value": account_arg}
@@ -952,8 +964,9 @@ def cmd_check(args: argparse.Namespace) -> None:
     Args:
         args: 命令行参数
     """
-    _base, bean_file, main_bean, _, _config_file = resolve_paths(args.data_dir)
-    main_bean_arg = args.main
+    data_dir: str = cast("str", args.data_dir)
+    _base, bean_file, main_bean, _, _config_file = resolve_paths(data_dir)
+    main_bean_arg: bool = cast("bool", args.main)
 
     target = main_bean if main_bean_arg else bean_file
     if not target.exists():
@@ -992,8 +1005,9 @@ def cmd_report(args: argparse.Namespace) -> None:
     Args:
         args: 命令行参数
     """
-    _base, bean_file, main_bean, _, _config_file = resolve_paths(args.data_dir)
-    main_bean_arg = args.main
+    data_dir: str = cast("str", args.data_dir)
+    _base, bean_file, main_bean, _, _config_file = resolve_paths(data_dir)
+    main_bean_arg: bool = cast("bool", args.main)
 
     target = main_bean if main_bean_arg else bean_file
     if not target.exists():
@@ -1006,7 +1020,7 @@ def cmd_report(args: argparse.Namespace) -> None:
         print("  安装方法: pip install beancount")
         return
 
-    report_type = args.report_type or "balances"
+    report_type: str = cast("str", args.report_type) or "balances"
     print_title(f"Beancount 报表: {report_type}")
 
     result = subprocess.run(
@@ -1029,8 +1043,9 @@ def cmd_merge(args: argparse.Namespace) -> None:
     Args:
         args: 命令行参数
     """
-    _base, bean_file, main_bean, _, _config_file = resolve_paths(args.data_dir)
-    include_arg = args.include
+    data_dir: str = cast("str", args.data_dir)
+    _base, bean_file, main_bean, _, _config_file = resolve_paths(data_dir)
+    include_arg: bool = cast("bool", args.include)
 
     if not bean_file.exists():
         print_err(f"导入文件不存在: {bean_file}")
@@ -1080,15 +1095,15 @@ def cmd_archive(args: argparse.Namespace) -> None:
     Args:
         args: 命令行参数
     """
-    base, _bean_file, _main_bean, downloads_dir, _config_file = resolve_paths(
-        args.data_dir
-    )
+    data_dir: str = cast("str", args.data_dir)
+    base, _bean_file, _main_bean, downloads_dir, _config_file = resolve_paths(data_dir)
 
     if not downloads_dir.exists():
         print_err("downloads 目录不存在")
         return
 
-    archive_dir = base / (args.output or "archive")
+    output: str = cast("str", args.output)
+    archive_dir = base / (output or "archive")
     archive_dir.mkdir(exist_ok=True)
 
     csv_files = find_all_csv(downloads_dir)
@@ -1118,7 +1133,8 @@ def cmd_clean(args: argparse.Namespace) -> None:
     Args:
         args: 命令行参数
     """
-    _base, bean_file, _, _, _config_file = resolve_paths(args.data_dir)
+    data_dir: str = cast("str", args.data_dir)
+    _base, bean_file, _, _, _config_file = resolve_paths(data_dir)
 
     if not bean_file.exists():
         print_err(f"文件不存在: {bean_file}")

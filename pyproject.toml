@@ -55,7 +55,7 @@ lint.extend-ignore = ["COM812", "RUF001"]
 "tests/*" = ["D", "S101", "S603", "RUF001"]
 "examples/*" = ["D", "INP001"]
 "tests/**/*.py" = ["ERA001", "SLF001"]      # 允许测试文件中的注释
-"scripts/*" = ["T201", "PLC0415", "EXE001", "TRY300"]  # 脚本允许使用 print, 局部 import 和 try 中的 return
+"scripts/*" = ["T201", "PLC0415", "EXE001", "TRY300", "ISC003"]  # 脚本允许使用 print, 局部 import, try 中的 return, 显式字符串拼接
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
