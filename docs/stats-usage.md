@@ -265,7 +265,7 @@ python scripts/stats.py clean
 
 ## 典型工作流
 
-```bash
+```
 1. 导入账单
    cd beancount-data
    python fava_import_config.py extract downloads/ -o imported_transactions.bean
