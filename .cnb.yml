@@ -38,7 +38,7 @@
 
         ruff:
           script: |
-            uv sync --extra llm --group dev
+            uv sync --group dev
             uv run ruff check --verbose
             uv run ruff format --check --diff --verbose
 
@@ -65,9 +65,15 @@
             uv run basedpyright --verbose
 
     - name: Test
-      script: |
-        uv sync --extra llm --group dev
-        uv run pytest --verbose
+      jobs:
+        unit-tests:
+          script: |
+            uv sync --extra llm --group dev
+            uv run pytest --verbose -m "not llm"
+        llm-tests:
+          script: |
+            uv sync --extra llm --group dev
+            uv run pytest --verbose -m "llm"
 
 # main 分支配置
 main:
@@ -90,10 +96,14 @@ main:
       docker:
         image: python:3.12
       stages:
-        - name: Build and Publish
+        - name: Build and Test
           script: |
             pip install uv build twine
+            uv sync --extra llm --group dev
+            uv run pytest --verbose -m "not llm"
             uv build
+        - name: Publish
+          script: |
             twine upload dist/*
           env:
             TWINE_USERNAME: __token__
