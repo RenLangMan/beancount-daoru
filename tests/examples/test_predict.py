@@ -1,13 +1,18 @@
+# 在文件最开头添加
+# pyright: reportUnknownVariableType=false
+# pyright: reportUnusedCallResult=false
+# pyright: reportAny=false
+import os
 import shutil
 import sys
 import warnings
 from collections.abc import Generator
 from pathlib import Path
+from typing import Protocol
 
 import git
 import pytest
-from typing_extensions import override
-from xprocess import ProcessStarter, XProcess
+from xprocess import ProcessStarter, XProcess  # 确保这行正确
 
 from tests.examples.conftest import (
     EXAMPLES_DIR,
@@ -24,92 +29,107 @@ ZERO_SHOT_PREDICTED_FILE = LEDGER_DIR / "zero_shot_predicted.beancount"
 FEW_SHOT_PREDICTED_FILE = LEDGER_DIR / "few_shot_predicted.beancount"
 
 
+# 定义正确的接口协议
+class StarterProtocol(Protocol):
+    """定义 ProcessStarter 应该有的接口。"""
+
+    @property
+    def args(self) -> list[str]: ...
+
+    @property
+    def pattern(self) -> str: ...
+
+    max_read_lines: int
+    timeout: int
+
+
 def start_llama_server(  # noqa: PLR0913
     *,
     xprocess: XProcess,
-    model_hf: str,
+    model_path: str | None = None,
+    model_hf: str | None = None,
     model_alias: str,
     port: int,
     ctx_size: int = 0,
     is_embedding: bool = False,
 ) -> Generator[None]:
-    """启动 Llama.cpp 服务器进程.
-
-    此函数启动一个 llama-server 进程,用于提供 LLM 推理服务。
-    支持嵌入模型和聊天补全模型两种模式。
-
-    参数:
-        xprocess: xprocess 实例,用于管理外部进程
-        model_hf: Hugging Face 模型标识符
-        model_alias: 模型别名
-        port: 服务端口号
-        ctx_size: 上下文大小(token 数)
-        is_embedding: 是否为嵌入模式(True)还是聊天补全模式(False)
-
-    返回:
-        生成器,在服务器运行期间保持进程
-
-    注意:
-        如果 llama-server 不在 PATH 中,测试会被跳过
-    """
+    """启动 Llama.cpp 服务器进程。"""
     exec_name = "llama-server"
     if shutil.which(exec_name) is None:
         pytest.skip(f"{exec_name!r} not in PATH")
 
+    # 使用简单的类定义，不重写 __init__
     class Starter(ProcessStarter):
         """Llama 服务器进程启动器。"""
-
+        
+        # 直接定义类属性
+        max_read_lines = sys.maxsize
+        timeout = 600
+        
         @property
-        @override
-        def args(self) -> list[str]:  # pyright: ignore[reportIncompatibleMethodOverride]
-            """构建启动命令参数列表。"""
-            cmd_args: list[str] = [
-                exec_name,
-                "-hf",
-                model_hf,
-                "--ctx-size",
-                str(ctx_size),
-                "--port",
-                str(port),
-                "--alias",
-                model_alias,
-                "--no-webui",
-            ]
+        def args(self) -> list[str]:
+            cmd_args: list[str] = [exec_name]
+
+            # 优先使用本地模型
+            if model_path and Path(model_path).exists():
+                cmd_args.extend(["-m", model_path])
+            elif model_hf:
+                cmd_args.extend(["-hf", model_hf])
+            else:
+                raise ValueError("Either model_path or model_hf must be provided")
+
+            cmd_args.extend(
+                [
+                    "--ctx-size",
+                    str(ctx_size),
+                    "--port",
+                    str(port),
+                    "--alias",
+                    model_alias,
+                    "--no-webui",
+                ]
+            )
             if is_embedding:
                 cmd_args.append("--embedding")
             return cmd_args
-
+        
         @property
-        @override
-        def pattern(self) -> str:  # pyright: ignore[reportIncompatibleMethodOverride]
-            """匹配进程启动成功的日志模式。"""
+        def pattern(self) -> str:
             return "main: server is listening on"
 
-        max_read_lines: int = sys.maxsize
-
     server_name = f"{exec_name}-{port}-{model_alias}"
-    _ = xprocess.ensure(server_name, Starter, persist_logs=False)  # pyright: ignore[reportUnknownVariableType]
+    _ = xprocess.ensure(server_name, Starter, persist_logs=False)
     yield
-    _ = xprocess.getinfo(server_name).terminate()
-
+    # 终止进程
+    proc_info = xprocess.getinfo(server_name)
+    if proc_info.isrunning():
+        proc_info.terminate()
 
 @pytest.fixture(scope="session")
 def embedding_server(xprocess: XProcess) -> Generator[None]:
-    """嵌入模型服务器固件.
+    """嵌入模型服务器固件(session 级)。
 
     启动一个用于生成文本嵌入向量的 LLM 服务器。
-    使用 unsloth/embeddinggemma-300m-GGUF 量化模型。
+    模型优先级:
+    1. TEST_EMBEDDING_MODEL 环境变量指定的路径
+    2. 默认路径 /opt/models/embeddinggemma-300m-Q4_0.gguf
 
     参数:
-        xprocess: xprocess 实例
+        xprocess: xprocess 实例,用于管理外部进程
 
     返回:
-        服务器进程生成器
+        服务器进程生成器,生命周期与测试会话相同
+
+    环境变量:
+        TEST_EMBEDDING_MODEL: 覆盖默认的嵌入模型路径
     """
+    model_path = os.environ.get(
+        "TEST_EMBEDDING_MODEL", "/opt/models/embeddinggemma-300m-Q4_0.gguf"
+    )
     yield from start_llama_server(
         xprocess=xprocess,
-        model_hf="unsloth/embeddinggemma-300m-GGUF:Q4_0",
-        model_alias="embeddinggemma-300m",
+        model_path=model_path,
+        model_alias="embedding-model",
         port=1314,
         is_embedding=True,
         ctx_size=1024,
@@ -118,21 +138,29 @@ def embedding_server(xprocess: XProcess) -> Generator[None]:
 
 @pytest.fixture(scope="session")
 def chat_completion_server(xprocess: XProcess) -> Generator[None]:
-    """聊天补全模型服务器固件.
+    """聊天补全模型服务器固件(session 级)。
 
     启动一个用于生成文本补全的 LLM 服务器。
-    使用 unsloth/Qwen3-4B-Instruct-2507-GGUF 量化模型。
+    模型优先级:
+    1. TEST_CHAT_MODEL 环境变量指定的路径
+    2. 默认路径 /opt/models/qwen3-4b-instruct-2507-iq4_nl.gguf
 
     参数:
-        xprocess: xprocess 实例
+        xprocess: xprocess 实例,用于管理外部进程
 
     返回:
-        服务器进程生成器
+        服务器进程生成器,生命周期与测试会话相同
+
+    环境变量:
+        TEST_CHAT_MODEL: 覆盖默认的聊天模型路径
     """
+    model_path = os.environ.get(
+        "TEST_CHAT_MODEL", "/opt/models/qwen3-4b-instruct-2507-iq4_nl.gguf"
+    )
     yield from start_llama_server(
         xprocess=xprocess,
-        model_hf="unsloth/Qwen3-4B-Instruct-2507-GGUF:IQ4_NL",
-        model_alias="Qwen3-4B-Instruct-2507",
+        model_path=model_path,
+        model_alias="chat-model",
         port=9527,
         ctx_size=8 * 1024,
     )
@@ -151,8 +179,8 @@ def __check_diff_with_tolerance(
         file_path: 要检查的文件路径
         max_lines: 允许的最大差异行数
     """
-    diff: str = git_repo.git.diff(file_path)  # pyright: ignore[reportAny]
-    if diff:
+    diff = git_repo.git.diff(file_path)  # type: ignore[assignment]
+    if diff and isinstance(diff, str):
         lines = diff.split("\n")
         changes = [
             line

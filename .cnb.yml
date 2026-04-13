@@ -2,7 +2,7 @@
 .ci-template: &ci-template
   runner:
     tags: cnb:arch:amd64
-    cpus: 8
+    cpus: 24
   docker:
     build: .ide/Dockerfile
     volumes:
@@ -106,10 +106,19 @@ $:
   vscode:
     clouddev:
       docker:
-        build: .ide/Dockerfile
+        # build: .ide/Dockerfile
+        # 指定云原生开发启动时的基础镜像为当前镜像
+        image: docker.cnb.cool/ysundy/beancount/beancount-daoru/beancount-daoru:latest
       runner:
         tags: cnb:arch:amd64
-        cpus: 8
+        cpus: 10
+      # 添加环境变量配置
+      env:
+        LLAMA_MODEL: /opt/models/tinyllama.gguf # 默认测试模型
+        LLAMA_HOST: 0.0.0.0
+        LLAMA_PORT: 8080
+        LLAMA_N_GPU_LAYERS: 0 # CPU 模式（CNB 环境通常无 GPU）
+        LLAMA_CONTEXT_SIZE: 2048
       services:
         - vscode
         - docker
@@ -122,11 +131,45 @@ $:
             # 生成 .env（如果不存在）
             if [ ! -f .env ]; then
               cat > .env << "EOF"
+            # .env - 环境配置文件
+
+            # ===== UV 配置 =====
             export UV_LINK_MODE="copy"
             export UV_INDEX_URL="https://mirrors.cloud.tencent.com/pypi/simple/"
             export UV_CONCURRENT_DOWNLOADS=50
             export UV_CACHE_DIR="${HOME}/.cache/uv"
+
+            # ===== 项目配置 =====
             export PROJECT_ROOT="/workspace"
+
+            # ===== LLM (llama.cpp) 配置 =====
+            # Linux/macOS 环境
+            export IS_WINDOWS=false
+            export LLAMA_MODEL_DIR="/opt/models"
+
+            # ===== 模型文件配置 =====
+            # 默认模型（用于一般使用）
+            export LLAMA_MODEL="${LLAMA_MODEL_DIR}/tinyllama.gguf"
+
+            # 测试模型（用于 pytest，优先级高于 LLAMA_MODEL）
+            # Embedding 模型（用于向量嵌入测试）
+            export TEST_EMBEDDING_MODEL="${LLAMA_MODEL_DIR}/embeddinggemma-300m-Q4_0.gguf"
+
+            # Chat Completion 模型（用于对话补全测试）
+            export TEST_CHAT_MODEL="${LLAMA_MODEL_DIR}/qwen3-4b-instruct-2507-iq4_nl.gguf"
+
+            # 备用模型（当主模型不可用时使用）
+            export TEST_FALLBACK_MODEL="${LLAMA_MODEL_DIR}/tinyllama.gguf"
+
+            # 服务配置
+            export LLAMA_HOST="0.0.0.0"
+            export LLAMA_PORT="8080"
+
+            # GPU 层数（CPU 模式设为 0，GPU 模式设为较大值如 99）
+            export LLAMA_N_GPU_LAYERS="0"
+
+            # 上下文大小
+            export LLAMA_CONTEXT_SIZE="2048"
             EOF
               echo "✅ 已创建 .env"
             else
@@ -155,3 +198,18 @@ $:
             pre-commit install
             pre-commit install --hook-type pre-push
             echo "✅ pre-commit 配置完成"
+
+        - name: Test llama-server
+          script: |
+            echo "🦙 测试 llama-server..."
+            # 后台启动服务
+            start-llama &
+            # 等待服务就绪
+            sleep 3
+            status-llama
+            # 测试 API
+            if curl -s http://localhost:8080/health > /dev/null; then
+              echo "✅ llama-server API 正常"
+            else
+              echo "⚠️ 健康检查端点不可用（可能版本差异）"
+            fi

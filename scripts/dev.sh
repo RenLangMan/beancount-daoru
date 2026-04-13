@@ -57,7 +57,7 @@ fi
 find_uv_cmd() {
   if [ -f ".venv/$VENV_BIN/uv" ] || [ -f ".venv/$VENV_BIN/uv.exe" ]; then
     echo ".venv/$VENV_BIN/uv"
-  elif command -v uv &> /dev/null; then
+  elif command -v uv &>/dev/null; then
     echo "uv"
   elif [ -n "$UV_PATH" ] && [ -f "$UV_PATH/uv" ]; then
     echo "$UV_PATH/uv"
@@ -71,9 +71,9 @@ find_uv_cmd() {
 find_python_cmd() {
   if [ -n "$PYTHON_PATH" ] && [ -f "$PYTHON_PATH/$PYTHON_EXE" ]; then
     echo "$PYTHON_PATH/$PYTHON_EXE"
-  elif command -v python &> /dev/null; then
+  elif command -v python &>/dev/null; then
     echo "python"
-  elif command -v python3 &> /dev/null; then
+  elif command -v python3 &>/dev/null; then
     echo "python3"
   else
     echo ""
@@ -96,7 +96,7 @@ create_venv() {
   if [ -n "$uv_cmd" ] && [ "$uv_cmd" != "uv" ]; then
     "$uv_cmd" venv --python "$python_cmd" --seed # 添加 --seed 安装 pip
   else
-    if command -v uv &> /dev/null; then
+    if command -v uv &>/dev/null; then
       uv venv --python "$python_cmd" --seed # 添加 --seed 安装 pip
     else
       "$python_cmd" -m venv .venv
@@ -107,9 +107,9 @@ create_venv() {
 
 activate_venv() {
   if [ "$IS_WINDOWS" = true ]; then
-    source .venv/Scripts/activate 2> /dev/null || true
+    source .venv/Scripts/activate 2>/dev/null || true
   else
-    source .venv/bin/activate 2> /dev/null || true
+    source .venv/bin/activate 2>/dev/null || true
   fi
 }
 
@@ -198,7 +198,7 @@ run_shellcheck() {
   SHELLCHECK_CMD=""
   if [ -f ".venv/Scripts/shellcheck.exe" ]; then
     SHELLCHECK_CMD=".venv/Scripts/shellcheck.exe"
-  elif command -v shellcheck &> /dev/null; then
+  elif command -v shellcheck &>/dev/null; then
     SHELLCHECK_CMD="shellcheck"
   fi
 
@@ -217,7 +217,7 @@ run_shfmt() {
   SHFMT_CMD=""
   if [ -f ".venv/Scripts/shfmt.exe" ]; then
     SHFMT_CMD=".venv/Scripts/shfmt.exe"
-  elif command -v shfmt &> /dev/null; then
+  elif command -v shfmt &>/dev/null; then
     SHFMT_CMD="shfmt"
   fi
 
@@ -231,7 +231,7 @@ run_shfmt() {
 
 run_basedpyright() {
   print_step "Basedpyright 类型检查..."
-  if uv run basedpyright --version &> /dev/null; then
+  if uv run basedpyright --version &>/dev/null; then
     uv run basedpyright
     print_success "类型检查通过"
   else
@@ -264,7 +264,7 @@ fix_code() {
   SHFMT_CMD=""
   if [ -f ".venv/Scripts/shfmt.exe" ]; then
     SHFMT_CMD=".venv/Scripts/shfmt.exe"
-  elif command -v shfmt &> /dev/null; then
+  elif command -v shfmt &>/dev/null; then
     SHFMT_CMD="shfmt"
   fi
 
@@ -288,7 +288,7 @@ run_tests() {
     args=("-v")
   fi
 
-  if uv run pytest --version &> /dev/null; then
+  if uv run pytest --version &>/dev/null; then
     uv run pytest "${args[@]}"
     print_success "测试完成"
   else
@@ -300,7 +300,7 @@ run_tests() {
 run_tests_with_coverage() {
   print_title "运行测试（带覆盖率）"
 
-  if uv run pytest --cov --version &> /dev/null; then
+  if uv run pytest --cov --version &>/dev/null; then
     uv run pytest --cov=src --cov-report=term --cov-report=html --cov-report=xml -v
     print_success "测试完成"
     echo
@@ -338,7 +338,7 @@ build_project() {
 check_publish() {
   print_title "检查发布配置"
 
-  if uv run twine check dist/* &> /dev/null; then
+  if uv run twine check dist/* &>/dev/null; then
     uv run twine check dist/*
     print_success "发布配置检查通过"
   else
@@ -383,16 +383,16 @@ clean_cache() {
   print_step "清理 uv 缓存..."
   local uv_cmd
   uv_cmd=$(find_uv_cmd)
-  "$uv_cmd" cache clean 2> /dev/null || true
+  "$uv_cmd" cache clean 2>/dev/null || true
 
   print_step "清理 Python 缓存文件..."
-  find . -type d -name "__pycache__" -exec rm -rf {} + 2> /dev/null || true
-  find . -type f -name "*.pyc" -delete 2> /dev/null || true
-  find . -type f -name ".coverage" -delete 2> /dev/null || true
-  find . -type d -name ".pytest_cache" -exec rm -rf {} + 2> /dev/null || true
-  find . -type d -name "htmlcov" -exec rm -rf {} + 2> /dev/null || true
-  find . -type d -name ".ruff_cache" -exec rm -rf {} + 2> /dev/null || true
-  find . -type d -name ".mypy_cache" -exec rm -rf {} + 2> /dev/null || true
+  find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+  find . -type f -name "*.pyc" -delete 2>/dev/null || true
+  find . -type f -name ".coverage" -delete 2>/dev/null || true
+  find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
+  find . -type d -name "htmlcov" -exec rm -rf {} + 2>/dev/null || true
+  find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
+  find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
 
   print_success "缓存清理完成"
 }
@@ -424,7 +424,7 @@ run_precommit_install() {
 
 run_precommit() {
   print_title "运行 pre-commit 检查"
-  if command -v pre-commit &> /dev/null; then
+  if command -v pre-commit &>/dev/null; then
     pre-commit run --all-files
     print_success "pre-commit 检查完成"
   else
@@ -467,9 +467,9 @@ show_status() {
 
   if check_venv; then
     echo -e "${BLUE}已安装的包:${NC}"
-    uv pip list 2> /dev/null | head -20
+    uv pip list 2>/dev/null | head -20
     local pkg_count
-    pkg_count=$(uv pip list 2> /dev/null | wc -l)
+    pkg_count=$(uv pip list 2>/dev/null | wc -l)
     if [ "$pkg_count" -gt 20 ]; then
       echo "  ... 共 $pkg_count 个包"
     fi
@@ -583,7 +583,7 @@ run_ci_pipeline() {
 
   # 类型检查
   print_step "类型检查..."
-  if uv run basedpyright --version &> /dev/null; then
+  if uv run basedpyright --version &>/dev/null; then
     if ! uv run basedpyright; then
       print_error "类型检查失败"
       has_error=1
@@ -643,6 +643,181 @@ run_full_pipeline() {
   echo "  - 发布项目: ./scripts/dev.sh publish-test"
 }
 
+# ==================== LLM (llama.cpp) 测试 ====================
+find_llama_cmd() {
+  local cmd=$1
+  # 优先级：环境变量 > 项目 bin > 系统 PATH
+  if [ -n "$LLAMA_SERVER" ] && [ -f "$LLAMA_SERVER" ]; then
+    echo "$LLAMA_SERVER"
+  elif [ -f "/usr/local/bin/$cmd" ]; then
+    echo "/usr/local/bin/$cmd"
+  elif command -v "$cmd" &>/dev/null; then
+    echo "$cmd"
+  else
+    echo ""
+  fi
+}
+
+run_llm_status() {
+  print_title "LLM 服务状态"
+
+  local llama_server
+  llama_server=$(find_llama_cmd "llama-server")
+
+  if [ -z "$llama_server" ]; then
+    print_error "llama-server 未安装"
+    print_info "请确保 llama.cpp 已编译并添加到 PATH"
+    print_info "或设置 LLAMA_SERVER 环境变量指向可执行文件"
+    return 1
+  fi
+
+  print_step "检查服务状态..."
+  if pgrep -f "llama-server" >/dev/null 2>&1; then
+    print_success "llama-server 运行中"
+    local pid port
+    pid=$(pgrep -f "llama-server" | head -1)
+    port=$(netstat -tlnp 2>/dev/null | grep "$pid" | grep -oP ':\K\d+' | head -1 || echo "8080")
+    echo "  PID:  $pid"
+    echo "  端口: ${port:-8080}"
+    echo "  URL:  http://localhost:${port:-8080}/v1/models"
+  else
+    print_warn "llama-server 未运行"
+    print_info "使用 './scripts/dev.sh llm-start' 启动服务"
+  fi
+}
+
+run_llm_start() {
+  print_title "启动 LLM 服务"
+
+  local llama_server
+  llama_server=$(find_llama_cmd "llama-server")
+
+  if [ -z "$llama_server" ]; then
+    print_error "llama-server 未安装"
+    return 1
+  fi
+
+  # 检查是否已运行
+  if pgrep -f "llama-server" >/dev/null 2>&1; then
+    print_warn "llama-server 已在运行"
+    return 0
+  fi
+
+  local model="${LLAMA_MODEL:-/opt/models/tinyllama.gguf}"
+  local host="${LLAMA_HOST:-0.0.0.0}"
+  local port="${LLAMA_PORT:-8080}"
+  local gpu_layers="${LLAMA_N_GPU_LAYERS:-99}"
+  local ctx_size="${LLAMA_CONTEXT_SIZE:-2048}"
+
+  print_step "启动 llama-server..."
+  echo "  模型: $model"
+  echo "  地址: $host:$port"
+  echo "  GPU 层数: $gpu_layers"
+  echo "  上下文: $ctx_size"
+
+  if [ ! -f "$model" ]; then
+    print_warn "模型文件不存在: $model"
+    print_info "请下载模型或设置 LLAMA_MODEL 环境变量"
+  fi
+
+  # 后台启动
+  "$llama_server" \
+    -m "$model" \
+    --host "$host" \
+    --port "$port" \
+    -ngl "$gpu_layers" \
+    -c "$ctx_size" \
+    &>"llama-server.log" &
+
+  local pid=$!
+  sleep 2
+
+  if kill -0 "$pid" 2>/dev/null; then
+    print_success "llama-server 已启动 (PID: $pid)"
+    print_info "日志: llama-server.log"
+    print_info "API: http://$host:$port"
+  else
+    print_error "启动失败，请检查 llama-server.log"
+    return 1
+  fi
+}
+
+run_llm_stop() {
+  print_title "停止 LLM 服务"
+
+  print_step "停止 llama-server..."
+  if pkill -f "llama-server" 2>/dev/null; then
+    sleep 1
+    if pgrep -f "llama-server" >/dev/null 2>&1; then
+      print_warn "服务可能仍在运行，尝试强制停止..."
+      pkill -9 -f "llama-server" 2>/dev/null || true
+    fi
+    print_success "llama-server 已停止"
+  else
+    print_warn "llama-server 未运行"
+  fi
+}
+
+run_llm_test() {
+  print_title "测试 LLM API"
+
+  local host="${LLAMA_HOST:-localhost}"
+  local port="${LLAMA_PORT:-8080}"
+  local base_url="http://$host:$port"
+
+  # 检查服务是否运行
+  print_step "检查服务状态..."
+  if ! pgrep -f "llama-server" >/dev/null 2>&1; then
+    print_warn "llama-server 未运行"
+    read -r -p "是否启动服务？(y/N): " -n 1
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+      run_llm_start
+    else
+      return 1
+    fi
+  fi
+
+  # 检查服务可用性
+  print_step "测试 API 端点..."
+  if curl -s --max-time 5 "$base_url/v1/models" >/dev/null 2>&1; then
+    print_success "API 服务正常"
+  else
+    print_error "API 服务不可用，请检查日志"
+    return 1
+  fi
+
+  # 获取模型信息
+  echo -e "\n${BLUE}模型信息:${NC}"
+  curl -s "$base_url/v1/models" | python -m json.tool 2>/dev/null ||
+    curl -s "$base_url/v1/models"
+
+  # 测试推理
+  echo -e "\n${BLUE}测试推理:${NC}"
+  local prompt="Hello, how are you?"
+  echo -e "${CYAN}Prompt:${NC} $prompt"
+
+  local response
+  response=$(curl -s --max-time 60 \
+    -X POST "$base_url/v1/chat/completions" \
+    -H "Content-Type: application/json" \
+    -d "{\"model\":\"local\",\"messages\":[{\"role\":\"user\",\"content\":\"$prompt\"}],\"max_tokens\":100}" \
+    2>&1)
+
+  if echo "$response" | grep -q "content"; then
+    echo -e "${GREEN}✅ 测试成功${NC}"
+    echo -e "\n${CYAN}Response:${NC}"
+    echo "$response" | python -c "
+import sys, json
+data = json.load(sys.stdin)
+print(data.get('choices', [{}])[0].get('message', {}).get('content', 'No content'))
+" 2>/dev/null || echo "$response"
+  else
+    print_error "推理失败"
+    echo "$response"
+  fi
+}
+
 # ==================== 菜单 ====================
 show_menu() {
   clear
@@ -679,10 +854,15 @@ show_menu() {
   echo -e "${YELLOW}开发流水线${NC}"
   echo -e "  ${YELLOW}21${NC}) 完整开发流水线  ${YELLOW}22${NC}) CI 检查流水线"
   echo
+  echo -e "${MAGENTA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${MAGENTA}LLM (llama.cpp)${NC}"
+  echo -e "  ${MAGENTA}23${NC}) LLM 服务状态    ${MAGENTA}24${NC}) 启动 LLM 服务"
+  echo -e "  ${MAGENTA}25${NC}) 停止 LLM 服务   ${MAGENTA}26${NC}) 测试 LLM API"
+  echo
   echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo -e "  ${YELLOW}0${NC}) 退出            ${YELLOW}h${NC}) 显示快捷命令"
   echo
-  echo -n "请选择 [0-22]: "
+  echo -n "请选择 [0-26]: "
 }
 
 # ==================== 命令行参数处理 ====================
@@ -741,6 +921,13 @@ case "$1" in
   precommit-install) run_precommit_install ;;
   precommit | precommit-run) run_precommit ;;
 
+  # LLM (llama.cpp)
+  llm-status) run_llm_status ;;
+  llm-start) run_llm_start ;;
+  llm-stop) run_llm_stop ;;
+  llm-test) run_llm_test ;;
+  llm) run_llm_status ;;
+
   # 帮助
   alias | aliases) show_aliases ;;
   help | -h | --help | h) show_aliases ;;
@@ -787,6 +974,10 @@ case "$1" in
         20) clean_all ;;
         21) run_full_pipeline ;;
         22) run_ci_pipeline ;;
+        23) run_llm_status ;;
+        24) run_llm_start ;;
+        25) run_llm_stop ;;
+        26) run_llm_test ;;
         h | H) show_aliases ;;
         *) print_error "无效选择" ;;
       esac

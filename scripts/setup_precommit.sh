@@ -43,7 +43,7 @@ uv pip install pre-commit
 
 # 验证 pre-commit 是否可用
 echo "📦 验证 pre-commit 安装..."
-if command -v pre-commit &> /dev/null; then
+if command -v pre-commit &>/dev/null; then
   echo "✅ pre-commit 已安装: $(which pre-commit)"
   pre-commit --version
 else
@@ -58,7 +58,7 @@ pre-commit install --hook-type pre-push
 
 # 安装 shellcheck
 echo "🔧 安装 shellcheck..."
-if ! command -v shellcheck &> /dev/null; then
+if ! command -v shellcheck &>/dev/null; then
   case "$OS" in
     windows)
       echo "⚠️ 请手动安装 shellcheck:"
@@ -68,9 +68,9 @@ if ! command -v shellcheck &> /dev/null; then
       echo "   4. 或使用 Chocolatey: choco install shellcheck"
       ;;
     linux)
-      if command -v apt-get &> /dev/null; then
+      if command -v apt-get &>/dev/null; then
         sudo apt-get update && sudo apt-get install -y shellcheck
-      elif command -v yum &> /dev/null; then
+      elif command -v yum &>/dev/null; then
         sudo yum install -y shellcheck
       else
         echo "请手动安装 shellcheck"
@@ -86,7 +86,7 @@ fi
 
 # 安装 shfmt
 echo "🔧 安装 shfmt..."
-if ! command -v shfmt &> /dev/null; then
+if ! command -v shfmt &>/dev/null; then
   case "$OS" in
     windows)
       echo "⚠️ 请手动安装 shfmt:"
@@ -96,9 +96,9 @@ if ! command -v shfmt &> /dev/null; then
       echo "   4. 或使用 Chocolatey: choco install shfmt"
       ;;
     linux)
-      if command -v apt-get &> /dev/null; then
+      if command -v apt-get &>/dev/null; then
         sudo apt-get update && sudo apt-get install -y shfmt
-      elif command -v yum &> /dev/null; then
+      elif command -v yum &>/dev/null; then
         sudo yum install -y shfmt
       else
         # 从源码安装

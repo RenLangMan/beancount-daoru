@@ -17,8 +17,8 @@ RUN apt-get update && apt-get install -y \
 
 # 安装 Go 1.22（如果基础镜像没有或版本太新）
 RUN if ! command -v go &> /dev/null || [[ $(go version | grep -oP 'go\K[0-9.]+') < 1.22 ]]; then \
-    curl -fsSL https://go.dev/dl/go1.22.5.linux-amd64.tar.gz | tar -C /usr/local -xzf - && \
-    echo "export PATH=\$PATH:/usr/local/go/bin" >> /root/.bashrc; \
+        curl -fsSL https://go.dev/dl/go1.22.5.linux-amd64.tar.gz | tar -C /usr/local -xzf - && \
+        echo "export PATH=\$PATH:/usr/local/go/bin" >> /root/.bashrc; \
     fi
 ENV PATH=$PATH:/usr/local/go/bin
 
@@ -68,48 +68,11 @@ RUN git clone https://github.com/ggerganov/llama.cpp /opt/llama.cpp && \
     cmake .. -DLLAMA_CURL=ON && \
     cmake --build . --config Release -j $(nproc) && \
     ln -sf /opt/llama.cpp/build/bin/llama-server /usr/local/bin/llama-server && \
-    ln -sf /opt/llama.cpp/build/bin/llama-cli /usr/local/bin/llama-cli
-
-# ==================== 预下载测试模型 ====================
-# 创建模型目录
-RUN mkdir -p /opt/models
-
-# 使用国内镜像加速下载（Hugging Face 镜像站）
-ENV HF_ENDPOINT=https://hf-mirror.com
-
-# 1. 下载 Embedding 模型 (unsloth/embeddinggemma-300m-GGUF:Q4_0) - 约 300MB
-RUN echo "📦 下载 Embedding 模型 (300MB)..." && \
-    curl -L --progress-bar -o /opt/models/embeddinggemma-300m-Q4_0.gguf \
-    https://hf-mirror.com/unsloth/embeddinggemma-300m-GGUF/resolve/main/embeddinggemma-300m-Q4_0.gguf && \
-    echo "✅ Embedding 模型下载完成" && \
-    ls -lh /opt/models/embeddinggemma-300m-Q4_0.gguf
-
-# 2. 下载 Chat Completion 模型 (unsloth/Qwen3-4B-Instruct-2507-GGUF:IQ4_NL) - 约 2.5-3GB
-# 注意：这个模型较大，下载可能需要较长时间
-RUN echo "📦 下载 Qwen3-4B 模型 (约 2.5GB，请耐心等待)..." && \
-    curl -L --progress-bar -o /opt/models/qwen3-4b-instruct-2507-iq4_nl.gguf \
-    https://hf-mirror.com/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/qwen3-4b-instruct-2507-iq4_nl.gguf && \
-    echo "✅ Qwen3-4B 模型下载完成" && \
-    ls -lh /opt/models/qwen3-4b-instruct-2507-iq4_nl.gguf
-
-# 可选：下载 TinyLlama 作为备用轻量模型（600MB）
-RUN echo "📦 下载 TinyLlama 备用模型 (600MB)..." && \
-    curl -L --progress-bar -o /opt/models/tinyllama.gguf \
-    https://hf-mirror.com/TheBloke/TinyLlama-1.1B-GGUF/resolve/main/tinyllama-1.1b-q4_k_m.gguf && \
-    echo "✅ TinyLlama 模型下载完成" && \
-    ls -lh /opt/models/tinyllama.gguf
-
-# 验证所有模型文件
-RUN echo "=== 预装模型列表 ===" && \
-    ls -lh /opt/models/*.gguf && \
-    echo "总大小:" && \
-    du -sh /opt/models && \
-    echo "==================="
-
-# 设置测试环境变量，指向预装的模型
-ENV TEST_EMBEDDING_MODEL=/opt/models/embeddinggemma-300m-Q4_0.gguf
-ENV TEST_CHAT_MODEL=/opt/models/qwen3-4b-instruct-2507-iq4_nl.gguf
-ENV TEST_FALLBACK_MODEL=/opt/models/tinyllama.gguf
+    ln -sf /opt/llama.cpp/build/bin/llama-cli /usr/local/bin/llama-cli && \
+    # 下载轻量测试模型（TinyLlama ~600MB，用于快速验证）
+    mkdir -p /opt/models && \
+    curl -L -o /opt/models/tinyllama.gguf \
+      https://huggingface.co/TheBloke/TinyLlama-1.1B-GGUF/resolve/main/tinyllama-1.1b-q4_k_m.gguf
 
 # 创建启动脚本（支持环境变量配置）
 RUN cat > /usr/local/bin/start-llama << 'EOF'
@@ -138,8 +101,8 @@ echo "  上下文大小: $CTX_SIZE"
 
 # 检查模型文件是否存在
 if [ ! -f "$MODEL" ]; then
-echo "❌ 错误: 模型文件不存在: $MODEL"
-exit 1
+    echo "❌ 错误: 模型文件不存在: $MODEL"
+    exit 1
 fi
 
 # 构建命令
@@ -147,7 +110,7 @@ CMD="llama-server -m $MODEL --host $HOST --port $PORT -ngl $N_GPU_LAYERS -c $CTX
 
 # 添加线程数参数（如果指定）
 if [ -n "$THREADS" ]; then
-CMD="$CMD -t $THREADS"
+    CMD="$CMD -t $THREADS"
 fi
 
 echo "执行: $CMD"
@@ -165,14 +128,14 @@ EOF
 RUN cat > /usr/local/bin/status-llama << 'EOF'
 #!/bin/bash
 if pgrep -f "llama-server" > /dev/null; then
-PID=$(pgrep -f "llama-server")
-# 使用 ss 替代 netstat（更现代）
-PORT=$(ss -tlnp 2>/dev/null | grep "$PID" | grep -oP ':\K\d+' | head -1)
-echo "✅ llama-server 运行中 (PID: $PID, 端口: ${PORT:-未知})"
-exit 0
+    PID=$(pgrep -f "llama-server")
+    # 使用 ss 替代 netstat（更现代）
+    PORT=$(ss -tlnp 2>/dev/null | grep "$PID" | grep -oP ':\K\d+' | head -1)
+    echo "✅ llama-server 运行中 (PID: $PID, 端口: ${PORT:-未知})"
+    exit 0
 else
-echo "❌ llama-server 未运行"
-exit 1
+    echo "❌ llama-server 未运行"
+    exit 1
 fi
 EOF
 
@@ -188,10 +151,10 @@ sleep 2
 
 # 健康检查
 if curl -s "http://$HOST:$PORT/health" > /dev/null 2>&1; then
-echo "✅ 服务健康检查通过"
+    echo "✅ 服务健康检查通过"
 else
-echo "❌ 服务健康检查失败"
-exit 1
+    echo "❌ 服务健康检查失败"
+    exit 1
 fi
 
 # 测试补全接口
@@ -223,11 +186,6 @@ RUN echo "=== Tool Versions ===" && \
     echo "bison: $(bison --version 2>/dev/null | head -n1 || echo 'not found')" && \
     echo "cmake: $(cmake --version 2>/dev/null | head -n1 || echo 'not found')" && \
     echo "llama-server: $(llama-server --version 2>&1 | head -n1 || echo 'installed')" && \
-    echo "===================="
-
-# 显示模型文件信息
-RUN echo "=== 预装模型文件 ===" && \
-    ls -lh /opt/models/ && \
     echo "===================="
 
 WORKDIR /workspace

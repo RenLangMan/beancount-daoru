@@ -42,7 +42,7 @@ else
 fi
 
 # 检查 fava 是否安装
-if ! command -v fava &> /dev/null; then
+if ! command -v fava &>/dev/null; then
   echo -e "${YELLOW}错误: fava 未安装，请先运行: pip install fava${NC}"
   exit 1
 fi
