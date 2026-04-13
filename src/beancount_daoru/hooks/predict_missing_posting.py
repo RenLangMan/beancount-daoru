@@ -826,3 +826,11 @@ class Hook(BaseHook):
                 Posting(account, None, None, None, None, None),
             ]
         )
+
+
+# Public aliases for internal classes
+Encoder = _Encoder
+TransactionIndex = _TransactionIndex
+HistoryIndex = _HistoryIndex
+AccountPredictor = _AccountPredictor
+ChatBot = _ChatBot
