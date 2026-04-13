@@ -47,6 +47,9 @@ dev = [
 [tool.pytest.ini_options]
 addopts = "--cov=src/ --cov-branch"
 testpaths = ["tests"]
+markers = [
+    "llm: marks tests that require LLM models (deselect with '-m \"not llm\"')",
+]
 disable_test_id_escaping_and_forfeit_all_rights_to_community_support = true
 
 [tool.ruff]

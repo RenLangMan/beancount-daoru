@@ -29,7 +29,7 @@ from beancount_daoru.hooks.predict_missing_posting import (
     HistoryIndex,
     TransactionIndex,
 )
-from beancount_daoru.hooks.predict_missing_posting import ChatBot as _ChatBot
+from beancount_daoru.hooks.predict_missing_posting import ChatBot
 from beancount_daoru.hooks.predict_missing_posting import Hook
 
 if TYPE_CHECKING:
@@ -182,7 +182,12 @@ def sample_directives(sample_account_meta: Meta) -> list[Directive]:
     """创建示例指令列表."""
     return [
         Open(date(2024, 1, 1), "Assets:Test:Checking", None, sample_account_meta),
-        Open(date(2024, 1, 1), "Expenses:Test:Food", None, Meta({"desc": "Food expenses"})),
+        Open(
+            date(2024, 1, 1),
+            "Expenses:Test:Food",
+            None,
+            Meta({"desc": "Food expenses"}),
+        ),
         Close(date(2024, 12, 31), "Assets:Test:Checking", None),
     ]
 
@@ -194,12 +199,16 @@ class TestEncoder:
     """Encoder 类的测试."""
 
     @pytest.mark.asyncio
-    async def test_encode_cached(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    async def test_encode_cached(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试缓存命中时直接返回缓存结果."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         test_text = "test text for caching"
 
-        with patch.object(encoder._Encoder__embeddings_client, "create", new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            encoder._Encoder__embeddings_client, "create", new_callable=AsyncMock
+        ) as mock_create:
             mock_response = MagicMock()
             mock_response.data = [MagicMock(embedding=[0.1, 0.2, 0.3])]
             mock_create.return_value = mock_response
@@ -212,12 +221,16 @@ class TestEncoder:
             mock_create.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_encode_miss_cache(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    async def test_encode_miss_cache(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试缓存未命中时调用 API 并缓存结果."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         test_text = "test text for API call"
 
-        with patch.object(encoder._Encoder__embeddings_client, "create", new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            encoder._Encoder__embeddings_client, "create", new_callable=AsyncMock
+        ) as mock_create:
             mock_response = MagicMock()
             mock_response.data = [MagicMock(embedding=[0.4, 0.5, 0.6])]
             mock_create.return_value = mock_response
@@ -226,14 +239,20 @@ class TestEncoder:
 
             assert result == [0.4, 0.5, 0.6]
             mock_create.assert_called_once()
-            mock_create.assert_called_with(input=test_text, model="test-embedding-model")
+            mock_create.assert_called_with(
+                input=test_text, model="test-embedding-model"
+            )
 
     @pytest.mark.asyncio
-    async def test_encode_different_texts(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    async def test_encode_different_texts(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试不同文本产生不同嵌入."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
 
-        with patch.object(encoder._Encoder__embeddings_client, "create", new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            encoder._Encoder__embeddings_client, "create", new_callable=AsyncMock
+        ) as mock_create:
             mock_response = MagicMock()
             mock_response.data = [MagicMock(embedding=[0.1, 0.2, 0.3])]
             mock_create.return_value = mock_response
@@ -253,7 +272,9 @@ class TestTransactionIndex:
     """TransactionIndex 类的测试."""
 
     @pytest.mark.asyncio
-    async def test_add_transaction(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    async def test_add_transaction(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试添加交易到索引."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = TransactionIndex(encoder=encoder, ndim=3)
@@ -293,7 +314,9 @@ class TestTransactionIndex:
             assert len(results) == 1
 
     @pytest.mark.asyncio
-    async def test_search_empty_index(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    async def test_search_empty_index(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试在空索引中搜索."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = TransactionIndex(encoder=encoder, ndim=3)
@@ -323,7 +346,9 @@ class TestTransactionIndex:
             assert len(results) == 0
 
     @pytest.mark.asyncio
-    async def test_hash_consistency(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    async def test_hash_consistency(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试哈希值的一致性."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = TransactionIndex(encoder=encoder, ndim=3)
@@ -336,7 +361,9 @@ class TestTransactionIndex:
         assert isinstance(hash1, int)
 
     @pytest.mark.asyncio
-    async def test_hash_different_texts(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    async def test_hash_different_texts(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试不同文本产生不同哈希值."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = TransactionIndex(encoder=encoder, ndim=3)
@@ -347,7 +374,9 @@ class TestTransactionIndex:
         assert hash1 != hash2
 
     @pytest.mark.asyncio
-    async def test_search_topk(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    async def test_search_topk(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试搜索返回指定数量的结果."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = TransactionIndex(encoder=encoder, ndim=3)
@@ -391,18 +420,27 @@ class TestHistoryIndex:
     """HistoryIndex 类的测试."""
 
     @pytest.mark.asyncio
-    async def test_add_open_directive(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    async def test_add_open_directive(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试添加 Open 指令."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
-        directive = Open(date(2024, 1, 1), "Assets:Test:Checking", None, Meta({"desc": "Test account"}))
+        directive = Open(
+            date(2024, 1, 1),
+            "Assets:Test:Checking",
+            None,
+            Meta({"desc": "Test account"}),
+        )
 
         await index.add(directive)
 
         assert "Assets:Test:Checking" in index.accounts
 
     @pytest.mark.asyncio
-    async def test_add_open_duplicate_raises(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    async def test_add_open_duplicate_raises(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试重复添加同一账户的 Open 指令抛出异常."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
@@ -415,7 +453,9 @@ class TestHistoryIndex:
             await index.add(directive2)
 
     @pytest.mark.asyncio
-    async def test_add_close_directive(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    async def test_add_close_directive(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试添加 Close 指令."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
@@ -429,7 +469,9 @@ class TestHistoryIndex:
         assert "Assets:Test:Checking" not in index.accounts
 
     @pytest.mark.asyncio
-    async def test_add_close_non_existing_raises(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    async def test_add_close_non_existing_raises(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试关闭不存在的账户抛出异常."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
@@ -459,7 +501,9 @@ class TestHistoryIndex:
         with pytest.raises(ValueError, match="transaction with non-existing account"):
             await index.add(txn)
 
-    def test_check_transaction_valid(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    def test_check_transaction_valid(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试有效交易的检查."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
@@ -479,7 +523,9 @@ class TestHistoryIndex:
 
         assert index._check_transaction(txn) is True
 
-    def test_check_transaction_with_warning_flag(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    def test_check_transaction_with_warning_flag(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试带警告标志的交易被拒绝."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
@@ -499,7 +545,9 @@ class TestHistoryIndex:
 
         assert index._check_transaction(txn) is False
 
-    def test_check_transaction_single_posting(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    def test_check_transaction_single_posting(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试只有一个分录的交易被拒绝."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
@@ -516,7 +564,9 @@ class TestHistoryIndex:
 
         assert index._check_transaction(txn) is False
 
-    def test_check_transaction_posting_with_flag(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    def test_check_transaction_posting_with_flag(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试分录带警告标志的交易被拒绝."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
@@ -590,28 +640,40 @@ class TestChatBot:
     @pytest.mark.asyncio
     async def test_complete_success(self, chat_settings: ChatModelSettings) -> None:
         """测试成功完成聊天补全."""
-        bot = _ChatBot(model_settings=chat_settings)
+        bot = ChatBot(model_settings=chat_settings)
 
-        with patch.object(bot._ChatBot__chat_client, "create", new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            bot._ChatBot__chat_client, "create", new_callable=AsyncMock
+        ) as mock_create:
             mock_response = MagicMock()
-            mock_response.choices = [MagicMock(message=MagicMock(content='"Expenses:Test"'))]
+            mock_response.choices = [
+                MagicMock(message=MagicMock(content='"Expenses:Test"'))
+            ]
             mock_create.return_value = mock_response
 
             result = await bot.complete(
                 user_prompt="Test prompt",
                 system_prompt="Test system",
-                response_format={"name": "test", "strict": True, "schema": {"type": "string"}},
+                response_format={
+                    "name": "test",
+                    "strict": True,
+                    "schema": {"type": "string"},
+                },
             )
 
             assert result == '"Expenses:Test"'
             mock_create.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_complete_with_temperature(self, chat_settings: ChatModelSettings) -> None:
+    async def test_complete_with_temperature(
+        self, chat_settings: ChatModelSettings
+    ) -> None:
         """测试带温度参数的聊天补全."""
-        bot = _ChatBot(model_settings=chat_settings)
+        bot = ChatBot(model_settings=chat_settings)
 
-        with patch.object(bot._ChatBot__chat_client, "create", new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            bot._ChatBot__chat_client, "create", new_callable=AsyncMock
+        ) as mock_create:
             mock_response = MagicMock()
             mock_response.choices = [MagicMock(message=MagicMock(content='"Result"'))]
             mock_create.return_value = mock_response
@@ -619,18 +681,26 @@ class TestChatBot:
             await bot.complete(
                 user_prompt="Test",
                 system_prompt="System",
-                response_format={"name": "test", "strict": True, "schema": {"type": "string"}},
+                response_format={
+                    "name": "test",
+                    "strict": True,
+                    "schema": {"type": "string"},
+                },
             )
 
             call_kwargs = mock_create.call_args.kwargs
             assert call_kwargs["temperature"] == 0.7
 
     @pytest.mark.asyncio
-    async def test_complete_content_none_raises(self, chat_settings: ChatModelSettings) -> None:
+    async def test_complete_content_none_raises(
+        self, chat_settings: ChatModelSettings
+    ) -> None:
         """测试模型返回 None 时抛出异常."""
-        bot = _ChatBot(model_settings=chat_settings)
+        bot = ChatBot(model_settings=chat_settings)
 
-        with patch.object(bot._ChatBot__chat_client, "create", new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            bot._ChatBot__chat_client, "create", new_callable=AsyncMock
+        ) as mock_create:
             mock_response = MagicMock()
             mock_response.choices = [MagicMock(message=MagicMock(content=None))]
             mock_create.return_value = mock_response
@@ -639,7 +709,11 @@ class TestChatBot:
                 await bot.complete(
                     user_prompt="Test",
                     system_prompt="System",
-                    response_format={"name": "test", "strict": True, "schema": {"type": "string"}},
+                    response_format={
+                        "name": "test",
+                        "strict": True,
+                        "schema": {"type": "string"},
+                    },
                 )
 
 
@@ -659,7 +733,7 @@ class TestAccountPredictor:
         """测试有效交易的检查."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
-        bot = _ChatBot(model_settings=chat_settings)
+        bot = ChatBot(model_settings=chat_settings)
         predictor = AccountPredictor(
             chat_bot=bot,
             index=index,
@@ -688,7 +762,7 @@ class TestAccountPredictor:
         """测试多分录交易被拒绝(预测只需要一个缺失分录)."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
-        bot = _ChatBot(model_settings=chat_settings)
+        bot = ChatBot(model_settings=chat_settings)
         predictor = AccountPredictor(
             chat_bot=bot,
             index=index,
@@ -711,11 +785,15 @@ class TestAccountPredictor:
 
         assert predictor._check_transaction(txn) is False
 
-    def test_system_prompt_contains_role(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    def test_system_prompt_contains_role(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试系统提示包含角色定义."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
-        bot = _ChatBot(model_settings={"name": "test", "base_url": "url", "api_key": "key"})
+        bot = ChatBot(
+            model_settings={"name": "test", "base_url": "url", "api_key": "key"}
+        )
         predictor = AccountPredictor(
             chat_bot=bot,
             index=index,
@@ -729,11 +807,15 @@ class TestAccountPredictor:
         assert "BEANCOUNT SYNTAX:" in prompt
         assert "CLASSIFICATION LOGIC:" in prompt
 
-    def test_system_prompt_with_extra_prompt(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    def test_system_prompt_with_extra_prompt(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试带额外提示的系统提示."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
-        bot = _ChatBot(model_settings={"name": "test", "base_url": "url", "api_key": "key"})
+        bot = ChatBot(
+            model_settings={"name": "test", "base_url": "url", "api_key": "key"}
+        )
         predictor = AccountPredictor(
             chat_bot=bot,
             index=index,
@@ -769,10 +851,14 @@ class TestAccountPredictor:
             ],
         )
 
-        open_directive = Open(date(2024, 1, 1), "Assets:Test", None, Meta({"desc": "Test desc"}))
+        open_directive = Open(
+            date(2024, 1, 1), "Assets:Test", None, Meta({"desc": "Test desc"})
+        )
         await index.add(open_directive)
 
-        bot = _ChatBot(model_settings={"name": "test", "base_url": "url", "api_key": "key"})
+        bot = ChatBot(
+            model_settings={"name": "test", "base_url": "url", "api_key": "key"}
+        )
         predictor = AccountPredictor(chat_bot=bot, index=index, extra_system_prompt="")
 
         with patch.object(index, "search", new_callable=AsyncMock) as mock_search:
@@ -820,7 +906,9 @@ class TestAccountPredictor:
             postings=[Posting("Assets:Test", None, None, None, None, None)],
         )
 
-        bot = _ChatBot(model_settings={"name": "test", "base_url": "url", "api_key": "key"})
+        bot = ChatBot(
+            model_settings={"name": "test", "base_url": "url", "api_key": "key"}
+        )
         predictor = AccountPredictor(chat_bot=bot, index=index, extra_system_prompt="")
 
         with patch.object(index, "search", new_callable=AsyncMock) as mock_search:
@@ -831,7 +919,9 @@ class TestAccountPredictor:
         assert "match" in prompt
         assert "Expenses:Similar" in prompt
 
-    def test_response_format(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    def test_response_format(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试响应格式的定义."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
@@ -843,7 +933,9 @@ class TestAccountPredictor:
             "Expenses:Test": (Meta({}), MagicMock()),
         }
 
-        bot = _ChatBot(model_settings={"name": "test", "base_url": "url", "api_key": "key"})
+        bot = ChatBot(
+            model_settings={"name": "test", "base_url": "url", "api_key": "key"}
+        )
         predictor = AccountPredictor(chat_bot=bot, index=index, extra_system_prompt="")
 
         fmt = predictor.response_format
@@ -866,7 +958,7 @@ class TestAccountPredictor:
         """测试无效交易返回 None."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
-        bot = _ChatBot(model_settings=chat_settings)
+        bot = ChatBot(model_settings=chat_settings)
         predictor = AccountPredictor(chat_bot=bot, index=index, extra_system_prompt="")
 
         multi_posting_txn = Transaction(
@@ -896,7 +988,7 @@ class TestAccountPredictor:
         """测试预测返回带感叹号的账户名."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
-        bot = _ChatBot(model_settings=chat_settings)
+        bot = ChatBot(model_settings=chat_settings)
         predictor = AccountPredictor(chat_bot=bot, index=index, extra_system_prompt="")
 
         txn = Transaction(
@@ -929,7 +1021,7 @@ class TestAccountPredictor:
         """测试模型返回 NULL 时返回 None."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
-        bot = _ChatBot(model_settings=chat_settings)
+        bot = ChatBot(model_settings=chat_settings)
         predictor = AccountPredictor(chat_bot=bot, index=index, extra_system_prompt="")
 
         txn = Transaction(
@@ -962,7 +1054,7 @@ class TestAccountPredictor:
         """测试如果账户名已带感叹号则不再添加."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
-        bot = _ChatBot(model_settings=chat_settings)
+        bot = ChatBot(model_settings=chat_settings)
         predictor = AccountPredictor(chat_bot=bot, index=index, extra_system_prompt="")
 
         txn = Transaction(
@@ -992,7 +1084,11 @@ class TestAccountPredictor:
 class TestHook:
     """Hook 类的测试."""
 
-    def test_hook_initialization(self, embedding_settings: EmbeddingModelSettings, chat_settings: ChatModelSettings) -> None:
+    def test_hook_initialization(
+        self,
+        embedding_settings: EmbeddingModelSettings,
+        chat_settings: ChatModelSettings,
+    ) -> None:
         """测试钩子初始化."""
         hook = Hook(
             chat_model_settings=chat_settings,
@@ -1003,7 +1099,11 @@ class TestHook:
         assert hasattr(hook, "_Hook__chat_bot")
         assert hasattr(hook, "_Hook__encoder")
 
-    def test_hook_with_cache_dir(self, embedding_settings: EmbeddingModelSettings, chat_settings: ChatModelSettings) -> None:
+    def test_hook_with_cache_dir(
+        self,
+        embedding_settings: EmbeddingModelSettings,
+        chat_settings: ChatModelSettings,
+    ) -> None:
         """测试带缓存目录的钩子初始化."""
         with TemporaryDirectory() as tmpdir:
             cache_dir = Path(tmpdir)
@@ -1015,7 +1115,11 @@ class TestHook:
 
             assert hook is not None
 
-    def test_hook_with_extra_prompt(self, embedding_settings: EmbeddingModelSettings, chat_settings: ChatModelSettings) -> None:
+    def test_hook_with_extra_prompt(
+        self,
+        embedding_settings: EmbeddingModelSettings,
+        chat_settings: ChatModelSettings,
+    ) -> None:
         """测试带额外提示的钩子初始化."""
         hook = Hook(
             chat_model_settings=chat_settings,
@@ -1033,11 +1137,15 @@ class TestEdgeCases:
     """边界情况测试."""
 
     @pytest.mark.asyncio
-    async def test_encoder_empty_text(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    async def test_encoder_empty_text(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试空文本编码."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
 
-        with patch.object(encoder._Encoder__embeddings_client, "create", new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            encoder._Encoder__embeddings_client, "create", new_callable=AsyncMock
+        ) as mock_create:
             mock_response = MagicMock()
             mock_response.data = [MagicMock(embedding=[0.0, 0.0, 0.0])]
             mock_create.return_value = mock_response
@@ -1047,12 +1155,16 @@ class TestEdgeCases:
             assert result == [0.0, 0.0, 0.0]
 
     @pytest.mark.asyncio
-    async def test_encoder_unicode_text(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    async def test_encoder_unicode_text(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试 Unicode 文本编码."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         unicode_text = "测试中文文本 テスト 한국어"
 
-        with patch.object(encoder._Encoder__embeddings_client, "create", new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            encoder._Encoder__embeddings_client, "create", new_callable=AsyncMock
+        ) as mock_create:
             mock_response = MagicMock()
             mock_response.data = [MagicMock(embedding=[0.1, 0.2, 0.3])]
             mock_create.return_value = mock_response
@@ -1062,7 +1174,9 @@ class TestEdgeCases:
             assert result == [0.1, 0.2, 0.3]
             mock_create.assert_called_once()
 
-    def test_hash_unicode(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    def test_hash_unicode(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试 Unicode 文本哈希."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = TransactionIndex(encoder=encoder, ndim=3)
@@ -1073,11 +1187,15 @@ class TestEdgeCases:
         assert hash1 == hash2
         assert isinstance(hash1, int)
 
-    def test_account_predictor_check_none_flag(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    def test_account_predictor_check_none_flag(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试 flag 为 None 的交易."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
-        bot = _ChatBot(model_settings={"name": "test", "base_url": "url", "api_key": "key"})
+        bot = ChatBot(
+            model_settings={"name": "test", "base_url": "url", "api_key": "key"}
+        )
         predictor = AccountPredictor(chat_bot=bot, index=index, extra_system_prompt="")
 
         txn = Transaction(
@@ -1093,11 +1211,15 @@ class TestEdgeCases:
 
         assert predictor._check_transaction(txn) is True
 
-    def test_account_predictor_check_posting_none_flag(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    def test_account_predictor_check_posting_none_flag(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试 posting flag 为 None 的交易."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
-        bot = _ChatBot(model_settings={"name": "test", "base_url": "url", "api_key": "key"})
+        bot = ChatBot(
+            model_settings={"name": "test", "base_url": "url", "api_key": "key"}
+        )
         predictor = AccountPredictor(chat_bot=bot, index=index, extra_system_prompt="")
 
         txn = Transaction(
@@ -1113,13 +1235,19 @@ class TestEdgeCases:
 
         assert predictor._check_transaction(txn) is True
 
-    def test_history_index_accounts_property(self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings) -> None:
+    def test_history_index_accounts_property(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
         """测试 accounts 属性返回正确的映射."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
 
-        open1 = Open(date(2024, 1, 1), "Assets:Test1", None, Meta({"desc": "Account 1"}))
-        open2 = Open(date(2024, 1, 1), "Assets:Test2", None, Meta({"desc": "Account 2"}))
+        open1 = Open(
+            date(2024, 1, 1), "Assets:Test1", None, Meta({"desc": "Account 1"})
+        )
+        open2 = Open(
+            date(2024, 1, 1), "Assets:Test2", None, Meta({"desc": "Account 2"})
+        )
 
         index._HistoryIndex__data_per_account = {
             "Assets:Test1": (Meta({"desc": "Account 1"}), MagicMock()),
@@ -1132,6 +1260,3 @@ class TestEdgeCases:
         assert "Assets:Test2" in accounts
         assert accounts["Assets:Test1"].get("desc") == "Account 1"
 
-
-# Type alias for backward compatibility
-ChatBot = _ChatBot

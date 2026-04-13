@@ -193,6 +193,7 @@ def __check_diff_with_tolerance(
             warnings.warn(diff, stacklevel=2)
 
 
+@pytest.mark.llm
 @pytest.mark.usefixtures("embedding_server", "chat_completion_server")
 def test_zero_shot(git_repo: git.Repo) -> None:
     """测试零样本预测(Zero-shot prediction).
@@ -218,6 +219,7 @@ def test_zero_shot(git_repo: git.Repo) -> None:
     __check_diff_with_tolerance(git_repo, ZERO_SHOT_PREDICTED_FILE, max_lines=4)
 
 
+@pytest.mark.llm
 @pytest.mark.usefixtures("embedding_server", "chat_completion_server")
 def test_few_shot(git_repo: git.Repo) -> None:
     """测试少样本预测(Few-shot prediction).
