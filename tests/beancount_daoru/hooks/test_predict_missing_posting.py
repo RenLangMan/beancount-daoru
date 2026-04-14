@@ -5,15 +5,12 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from beancount import (
     FLAG_OKAY,
     FLAG_WARNING,
-    Account,
     Close,
     Directive,
     Meta,
@@ -21,20 +18,17 @@ from beancount import (
     Posting,
     Transaction,
 )
+
 from beancount_daoru.hooks.predict_missing_posting import (
     AccountPredictor,
+    ChatBot,
     ChatModelSettings,
     EmbeddingModelSettings,
     Encoder,
     HistoryIndex,
+    Hook,
     TransactionIndex,
 )
-from beancount_daoru.hooks.predict_missing_posting import ChatBot
-from beancount_daoru.hooks.predict_missing_posting import Hook
-
-if TYPE_CHECKING:
-    pass
-
 
 # ===== 测试固件 =====
 
@@ -1259,4 +1253,3 @@ class TestEdgeCases:
         assert "Assets:Test1" in accounts
         assert "Assets:Test2" in accounts
         assert accounts["Assets:Test1"].get("desc") == "Account 1"
-
