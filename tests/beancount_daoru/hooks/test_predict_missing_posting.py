@@ -614,7 +614,6 @@ class TestHistoryIndex:
         assert index._check_transaction(txn) is False
 
     @pytest.mark.asyncio
-    @pytest.mark.llm
     async def test_search_returns_similar_transactions(
         self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
     ) -> None:
@@ -622,14 +621,23 @@ class TestHistoryIndex:
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
 
-        open_directive = Open(
-            meta=Meta({}),
-            date=date(2024, 1, 1),
-            account="Assets:Test",
-            currencies=[],
-            booking=None,
-        )
-        await index.add(open_directive)
+        # 需要添加所有涉及的账户
+        open_directives = [
+            Open(
+                meta=Meta({}),
+                date=date(2024, 1, 1),
+                account="Assets:Test",
+                currencies=[],
+                booking=None,
+            ),
+            Open(
+                meta=Meta({}),
+                date=date(2024, 1, 1),
+                account="Expenses:Test",
+                currencies=[],
+                booking=None,
+            ),
+        ]
 
         txn = Transaction(
             date=date(2024, 1, 15),
@@ -645,21 +653,23 @@ class TestHistoryIndex:
             ],
         )
 
-        await index.add(txn)
-
-        search_txn = Transaction(
-            date=date(2024, 1, 16),
-            flag=FLAG_OKAY,
-            narration="Search transaction",
-            payee=None,
-            links=(),
-            tags=(),
-            meta=Meta({}),
-            postings=[Posting("Assets:Test", None, None, None, None, None)],
-        )
-
+        # 在添加数据前 mock encoder.encode
         with patch.object(encoder, "encode", new_callable=AsyncMock) as mock_encode:
             mock_encode.return_value = [0.1, 0.2, 0.3]
+            for directive in open_directives:
+                await index.add(directive)
+            await index.add(txn)
+
+            search_txn = Transaction(
+                date=date(2024, 1, 16),
+                flag=FLAG_OKAY,
+                narration="Search transaction",
+                payee=None,
+                links=(),
+                tags=(),
+                meta=Meta({}),
+                postings=[Posting("Assets:Test", None, None, None, None, None)],
+            )
             results = await index.search(search_txn, n_few_shots=3)
 
         assert len(results) <= 3
