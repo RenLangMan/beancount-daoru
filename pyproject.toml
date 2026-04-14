@@ -15,6 +15,7 @@ dependencies = [
     "pyexcel-xlsxr>=0.6.2",
     "pdfplumber>=0.11.8",
     "typing-extensions>=4.15.0",
+    "mdformat>=1.0.0",
 ]
 requires-python = ">=3.10"
 authors = [{ name = "AN Qi", email = "aqnin@outlook.com" }]
@@ -35,8 +36,10 @@ dev = [
     "pytest>=9.0",
     "pytest-cov>=7.0",
     "pytest-xprocess>=1.0.2",
+    "pytest-asyncio>=0.25.0",
     "gitpython>=3.1",
     "ruff>=0.14.7",
+    "mdformat>=0.7.19",
     "debugpy>=1.8.18",
     "basedpyright>=1.36.1",
     "pre-commit>=4.5.1",
@@ -57,8 +60,8 @@ lint.extend-select = ["ALL"]
 lint.extend-ignore = ["COM812", "RUF001"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["D", "S101", "S603", "RUF001"]
-"examples/*" = ["D", "INP001"]
+"tests/*" = ["D", "S101", "S603", "RUF001", "PLR2004"]  # 测试文件允许使用 magic numbers 和 assert
+"examples/*.py" = ["D", "INP001"]  # 只忽略文档和命名检查
 "tests/**/*.py" = ["ERA001", "SLF001"]      # 允许测试文件中的注释
 "scripts/*" = ["T201", "PLC0415", "EXE001", "TRY300", "ISC003"]  # 脚本允许使用 print, 局部 import, try 中的 return, 显式字符串拼接
 

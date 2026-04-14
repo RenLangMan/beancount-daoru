@@ -239,7 +239,7 @@ class TestParseCounterParty:
         }
         txn = parser.parse(record)
         postings = tuple(txn.postings)
-        assert len(postings) == 2  # noqa: PLR2004
+        assert len(postings) == 2
         assert postings[1].account == "美团月付"
 
 
