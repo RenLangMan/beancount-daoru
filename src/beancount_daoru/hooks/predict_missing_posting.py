@@ -5,6 +5,7 @@
 """
 
 import asyncio
+import json
 import re
 from collections.abc import Mapping
 from hashlib import blake2b
@@ -14,7 +15,6 @@ from typing import TypedDict
 import numpy as np
 from beancount import (
     FLAG_OKAY,
-    FLAG_WARNING,
     Account,
     Close,
     Directive,
@@ -550,17 +550,19 @@ class _AccountPredictor:
         """获取响应格式的 JSON Schema.
 
         返回:
-            限制响应只能为可用账户名或 null 的 JSON 对象，允许更灵活的响应格式
+            限制响应只能为可用账户名或 null 的 JSON 对象,允许更灵活的响应格式
         """
         return {
             "name": "predictted_account",
-            "strict": False,  # 改为 False，允许更灵活的响应
+            "strict": False,  # 改为 False,允许更灵活的响应
             "schema": {
                 "type": "object",
                 "properties": {
                     "account": {
                         "type": ["string", "null"],
-                        "description": "The predicted account name or null if not confident"
+                        "description": (
+                            "The predicted account name or null if not confident"
+                        ),
                     }
                 },
                 "required": ["account"],
@@ -570,57 +572,56 @@ class _AccountPredictor:
     async def predict(self, transaction: Transaction) -> Account | None:
         """预测交易中缺失的会计科目.
 
-        此方法使用大语言模型分析交易上下文，预测最合适的会计科目。
-        预测流程包括：
-            1. 验证交易是否适合预测（单条 posting，状态正常）
-            2. 构建用户提示（包含历史相似交易示例）
+        此方法使用大语言模型分析交易上下文,预测最合适的会计科目。
+        预测流程包括:
+            1. 验证交易是否适合预测(单条 posting,状态正常)
+            2. 构建用户提示(包含历史相似交易示例)
             3. 调用 LLM 获取预测结果
             4. 解析 JSON 响应并返回账户名
 
         参数:
-            transaction: Beancount 交易对象，应包含单条 posting
+            transaction: Beancount 交易对象,应包含单条 posting
 
         返回:
-            预测的账户名（如 "Expenses:Food"），如果无法预测则返回 None
-            
+            预测的账户名(如 "Expenses:Food"),如果无法预测则返回 None
+
         注意:
-            - 返回的账户名不带 '!' 前缀，前缀由调用方添加
-            - 如果 LLM 返回 null 或 NULL，表示无法预测
-            - 支持解析 JSON 格式的响应：{"account": "Expenses:Food"}
+            - 返回的账户名不带 '!' 前缀,前缀由调用方添加
+            - 如果 LLM 返回 null 或 NULL,表示无法预测
+            - 支持解析 JSON 格式的响应:{"account": "Expenses:Food"}
         """
         # 检查交易是否适合预测
         if not self._check_transaction(transaction):
             return None
-        
+
         # 构建用户提示
         user_prompt = await self.user_prompt(transaction)
-        
+
         # 调用 LLM 获取预测
         response = await self.__chat_bot.complete(
             user_prompt,
             system_prompt=self.system_prompt,
             response_format=self.response_format,
         )
-        
-        print(f"DEBUG: response = {response}")  # 添加这行
+
         # 解析 JSON 响应
         # 验证响应
-        import json
+
         try:
             data = json.loads(response)
             predicted_account = data.get("account")
         except (json.JSONDecodeError, AttributeError, KeyError):
-            # 如果 JSON 解析失败，尝试直接使用响应文本
+            # 如果 JSON 解析失败,尝试直接使用响应文本
             predicted_account = response.strip() if response else None
-        
+
         # 验证并返回预测结果
-        if predicted_account and predicted_account != "NULL" and predicted_account != "null":
-            # 直接返回账户名，不添加 '!' 前缀
+        if predicted_account and predicted_account not in ("NULL", "null"):
+            # 直接返回账户名,不添加 '!' 前缀
             # 前缀由 _process_directive 方法根据账户类型添加
-            print(f"DEBUG: returning {predicted_account}")  # 添加这行
             return predicted_account
-        
+
         return None
+
 
 class Hook(BaseHook):
     """预测交易中缺失会计科目的钩子.
@@ -783,27 +784,27 @@ class Hook(BaseHook):
     ) -> Directive:
         """处理单个 Beancount 指令.
 
-        此方法处理单个 Beancount 指令，对于交易类型，
+        此方法处理单个 Beancount 指令,对于交易类型,
         会尝试预测缺失的会计科目并添加到交易中。
 
-        处理逻辑：
-            1. 如果不是交易指令，直接返回原指令
+        处理逻辑:
+            1. 如果不是交易指令,直接返回原指令
             2. 调用预测器获取预测的账户名
-            3. 如果预测失败，返回原指令
-            4. 费用类账户（Expenses开头）添加 '!' 前缀作为待定标记
-            5. 收入类账户（Income开头）不添加 '!' 前缀
-            6. 将预测的 posting 添加到交易中，不添加额外的 flag 标记
+            3. 如果预测失败,返回原指令
+            4. 费用类账户(Expenses开头)添加 '!' 前缀作为待定标记
+            5. 收入类账户(Income开头)不添加 '!' 前缀
+            6. 将预测的 posting 添加到交易中,不添加额外的 flag 标记
 
         参数:
-            directive: Beancount 指令（可能是交易或其他类型）
+            directive: Beancount 指令(可能是交易或其他类型)
             predictor: 会计科目预测器实例
 
         返回:
-            处理后的指令，如果是交易且预测成功，则包含预测的记账分录
+            处理后的指令,如果是交易且预测成功,则包含预测的记账分录
 
         注意:
-            - '!' 前缀表示待定科目，需要人工确认
-            - 不会修改原有的 postings，只在末尾添加新的 posting
+            - '!' 前缀表示待定科目,需要人工确认
+            - 不会修改原有的 postings,只在末尾添加新的 posting
         """
         if not isinstance(directive, Transaction):
             return directive
@@ -811,14 +812,14 @@ class Hook(BaseHook):
         predicted_account = await predictor.predict(directive)
         if predicted_account is None:
             return directive
-        
-        # 格式化账户名：费用类添加 '!' 前缀作为待定标记
+
+        # 格式化账户名:费用类添加 '!' 前缀作为待定标记
         account = predicted_account
-        if account.startswith('Expenses') and not account.startswith('!'):
+        if account.startswith("Expenses") and not account.startswith("!"):
             account = f"! {account}"
         # 收入类账户保持原样
-        
-        # 不添加任何 flag，避免输出 '*' 或 '!' 标记
+
+        # 不添加任何 flag,避免输出 '*' 或 '!' 标记
         # 因为 '!' 已经作为账户名的前缀存在
         return directive._replace(
             postings=[
