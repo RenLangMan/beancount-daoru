@@ -36,6 +36,7 @@ dev = [
     "pytest>=9.0",
     "pytest-cov>=7.0",
     "pytest-xprocess>=1.0.2",
+    "pytest-asyncio>=0.25.0",
     "gitpython>=3.1",
     "ruff>=0.14.7",
     "mdformat>=0.7.19",
