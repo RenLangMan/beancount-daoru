@@ -187,15 +187,20 @@ $:
             fi
 
             # 自动加载 .env 到 ~/.zshrc
-            if ! grep -q "source /workspace/.env" ~/.zshrc; then
+            if ! grep -q "source /workspace/.env" ~/.zshrc 2>/dev/null; then
               echo "" >> ~/.zshrc
               echo "# Auto-load project environment" >> ~/.zshrc
               echo "source /workspace/.env" >> ~/.zshrc
               echo "✅ 已添加 .env 到 ~/.zshrc"
             fi
 
-            # 加载当前会话环境变量
-            source .env
+            # 加载当前会话环境变量（使用绝对路径）
+            if [ -f /workspace/.env ]; then
+              source /workspace/.env
+              echo "✅ 已加载 .env 环境变量"
+            else
+              echo "⚠️ .env 文件不存在，跳过加载"
+            fi
 
             # 安装项目依赖
             echo "📦 安装项目依赖（可能需要几分钟）..."
@@ -204,10 +209,14 @@ $:
 
             # 安装 pre-commit
             echo "🔧 安装 pre-commit..."
-            uv tool install pre-commit --with pre-commit-uv
-            pre-commit install
-            pre-commit install --hook-type pre-push
-            echo "✅ pre-commit 配置完成"
+            uv tool install pre-commit --with pre-commit-uv || true
+            if [ -d /workspace/.git ]; then
+              pre-commit install || true
+              pre-commit install --hook-type pre-push || true
+              echo "✅ pre-commit 配置完成"
+            else
+              echo "⚠️ 不是 Git 仓库，跳过 pre-commit 安装"
+            fi
 
         - name: Test llama-server
           script: |
