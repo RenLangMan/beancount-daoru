@@ -26,8 +26,9 @@ config:
     indent: 2 # 列表缩进 2 空格
   MD009:
     br_spaces: 2 # 行尾空格
-  MD029:
-    style: ordered # 有序列表样式
+
+  # MD029 由 mdformat 处理，markdownlint 跳过
+  MD029: false
 
 # 忽略的文件（保持）
 ignores:
