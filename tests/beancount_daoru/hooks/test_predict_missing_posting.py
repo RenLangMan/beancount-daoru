@@ -175,14 +175,15 @@ def transaction_with_posting_flag() -> Transaction:
 def sample_directives(sample_account_meta: Meta) -> list[Directive]:
     """创建示例指令列表."""
     return [
-        Open(date(2024, 1, 1), "Assets:Test:Checking", None, sample_account_meta),
+        Open(sample_account_meta, date(2024, 1, 1), "Assets:Test:Checking", [], None),
         Open(
+            Meta({"desc": "Food expenses"}),
             date(2024, 1, 1),
             "Expenses:Test:Food",
+            [],
             None,
-            Meta({"desc": "Food expenses"}),
         ),
-        Close(date(2024, 12, 31), "Assets:Test:Checking", None),
+        Close(Meta({}), date(2024, 12, 31), "Assets:Test:Checking"),
     ]
 
 
@@ -421,10 +422,11 @@ class TestHistoryIndex:
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
         directive = Open(
+            Meta({"desc": "Test account"}),
             date(2024, 1, 1),
             "Assets:Test:Checking",
+            [],
             None,
-            Meta({"desc": "Test account"}),
         )
 
         await index.add(directive)
@@ -438,8 +440,8 @@ class TestHistoryIndex:
         """测试重复添加同一账户的 Open 指令抛出异常."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
-        directive1 = Open(date(2024, 1, 1), "Assets:Test:Checking", None, Meta({}))
-        directive2 = Open(date(2024, 1, 2), "Assets:Test:Checking", None, Meta({}))
+        directive1 = Open(Meta({}), date(2024, 1, 1), "Assets:Test:Checking", [], None)
+        directive2 = Open(Meta({}), date(2024, 1, 2), "Assets:Test:Checking", [], None)
 
         await index.add(directive1)
 
@@ -453,8 +455,10 @@ class TestHistoryIndex:
         """测试添加 Close 指令."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
-        open_directive = Open(date(2024, 1, 1), "Assets:Test:Checking", None, Meta({}))
-        close_directive = Close(date(2024, 12, 31), "Assets:Test:Checking", None)
+        open_directive = Open(
+            Meta({}), date(2024, 1, 1), "Assets:Test:Checking", [], None
+        )
+        close_directive = Close(Meta({}), date(2024, 12, 31), "Assets:Test:Checking")
 
         await index.add(open_directive)
         assert "Assets:Test:Checking" in index.accounts
@@ -469,7 +473,7 @@ class TestHistoryIndex:
         """测试关闭不存在的账户抛出异常."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
-        directive = Close(date(2024, 12, 31), "Assets:NonExistent", None)
+        directive = Close(Meta({}), date(2024, 12, 31), "Assets:NonExistent")
 
         with pytest.raises(ValueError, match="close non-existing account"):
             await index.add(directive)
@@ -489,7 +493,10 @@ class TestHistoryIndex:
             links=(),
             tags=(),
             meta=Meta({}),
-            postings=[Posting("Assets:NonExistent", None, None, None, None, None)],
+            postings=[
+                Posting("Assets:NonExistent", None, None, None, None, None),
+                Posting("Expenses:Test", None, None, None, None, None),
+            ],
         )
 
         with pytest.raises(ValueError, match="transaction with non-existing account"):
@@ -588,7 +595,7 @@ class TestHistoryIndex:
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
 
-        open_directive = Open(date(2024, 1, 1), "Assets:Test", None, Meta({}))
+        open_directive = Open(Meta({}), date(2024, 1, 1), "Assets:Test", [], None)
         await index.add(open_directive)
 
         txn = Transaction(
@@ -646,7 +653,7 @@ class TestChatBot:
             mock_create.return_value = mock_response
 
             result = await bot.complete(
-                user_prompt="Test prompt",
+                "Test prompt",
                 system_prompt="Test system",
                 response_format={
                     "name": "test",
@@ -673,7 +680,7 @@ class TestChatBot:
             mock_create.return_value = mock_response
 
             await bot.complete(
-                user_prompt="Test",
+                "Test",
                 system_prompt="System",
                 response_format={
                     "name": "test",
@@ -701,7 +708,7 @@ class TestChatBot:
 
             with pytest.raises(ValueError, match="content is None"):
                 await bot.complete(
-                    user_prompt="Test",
+                    "Test",
                     system_prompt="System",
                     response_format={
                         "name": "test",
@@ -846,7 +853,7 @@ class TestAccountPredictor:
         )
 
         open_directive = Open(
-            date(2024, 1, 1), "Assets:Test", None, Meta({"desc": "Test desc"})
+            Meta({"desc": "Test desc"}), date(2024, 1, 1), "Assets:Test", [], None
         )
         await index.add(open_directive)
 
@@ -886,7 +893,7 @@ class TestAccountPredictor:
             ],
         )
 
-        open_directive = Open(date(2024, 1, 1), "Assets:Test", None, Meta({}))
+        open_directive = Open(Meta({}), date(2024, 1, 1), "Assets:Test", [], None)
         await index.add(open_directive)
 
         txn = Transaction(
@@ -931,13 +938,12 @@ class TestAccountPredictor:
 
         fmt = predictor.response_format
 
-        assert fmt["name"] == "predictted account or null"
-        assert fmt["strict"] is True
-        assert "string" in fmt["schema"]["type"]
-        assert "null" in fmt["schema"]["type"]
-        assert "Assets:Test" in fmt["schema"]["enum"]
-        assert "Expenses:Test" in fmt["schema"]["enum"]
-        assert None in fmt["schema"]["enum"]
+        assert fmt["name"] == "predictted_account"
+        assert fmt["strict"] is False
+        assert fmt["schema"]["type"] == "object"
+        assert "account" in fmt["schema"]["properties"]
+        assert "string" in fmt["schema"]["properties"]["account"]["type"]
+        assert "null" in fmt["schema"]["properties"]["account"]["type"]
 
     @pytest.mark.asyncio
     async def test_predict_invalid_transaction_returns_none(
@@ -994,13 +1000,13 @@ class TestAccountPredictor:
         )
 
         with patch.object(bot, "complete", new_callable=AsyncMock) as mock_complete:
-            mock_complete.return_value = '"Expenses:Food"'
+            mock_complete.return_value = '{"account": "Expenses:Food"}'
 
             with patch.object(index, "search", new_callable=AsyncMock) as mock_search:
                 mock_search.return_value = []
                 result = await predictor.predict(txn)
 
-        assert result == "! Expenses:Food"
+        assert result == "Expenses:Food"
 
     @pytest.mark.asyncio
     async def test_predict_returns_null_for_null_response(
@@ -1060,12 +1066,13 @@ class TestAccountPredictor:
         )
 
         with patch.object(bot, "complete", new_callable=AsyncMock) as mock_complete:
-            mock_complete.return_value = '"! Expenses:Food"'
+            mock_complete.return_value = '{"account": "! Expenses:Food"}'
 
             with patch.object(index, "search", new_callable=AsyncMock) as mock_search:
                 mock_search.return_value = []
                 result = await predictor.predict(txn)
 
+        # 保留 LLM 返回的感叹号 (不重复添加)
         assert result == "! Expenses:Food"
 
 
