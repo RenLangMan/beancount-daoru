@@ -614,6 +614,7 @@ class TestHistoryIndex:
         assert index._check_transaction(txn) is False
 
     @pytest.mark.asyncio
+    @pytest.mark.llm
     async def test_search_returns_similar_transactions(
         self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
     ) -> None:
