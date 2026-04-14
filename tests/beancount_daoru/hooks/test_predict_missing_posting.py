@@ -919,9 +919,6 @@ class TestAccountPredictor:
         """测试响应格式的定义."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
-
-        open_directive = Open(date(2024, 1, 1), "Assets:Test", None, Meta({}))
-        open_directive2 = Open(date(2024, 1, 1), "Expenses:Test", None, Meta({}))
         index._HistoryIndex__data_per_account = {
             "Assets:Test": (Meta({}), MagicMock()),
             "Expenses:Test": (Meta({}), MagicMock()),
@@ -1235,14 +1232,6 @@ class TestEdgeCases:
         """测试 accounts 属性返回正确的映射."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
-
-        open1 = Open(
-            date(2024, 1, 1), "Assets:Test1", None, Meta({"desc": "Account 1"})
-        )
-        open2 = Open(
-            date(2024, 1, 1), "Assets:Test2", None, Meta({"desc": "Account 2"})
-        )
-
         index._HistoryIndex__data_per_account = {
             "Assets:Test1": (Meta({"desc": "Account 1"}), MagicMock()),
             "Assets:Test2": (Meta({"desc": "Account 2"}), MagicMock()),
