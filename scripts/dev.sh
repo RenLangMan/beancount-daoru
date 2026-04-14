@@ -180,12 +180,23 @@ remove_dep() {
 
 # ==================== 代码检查（对齐 CI Checks） ====================
 run_markdownlint() {
-  print_step "Markdownlint 检查..."
+  print_step "Markdown 检查..."
   if command -v markdownlint-cli2 &> /dev/null; then
     markdownlint-cli2 "**/*.md" --fix
-    print_success "Markdownlint 检查通过"
+    print_success "Markdown 检查完成"
   else
     print_warn "markdownlint-cli2 未安装，跳过 Markdown 检查"
+  fi
+}
+
+run_mdformat() {
+  print_step "Markdown 格式化..."
+  if uv run mdformat --version &> /dev/null; then
+    uv run mdformat docs/ scripts/ README.md CONTRIBUTING.md NOTICE.md QUICKSTART.md
+    print_success "Markdown 格式化完成"
+  else
+    print_warn "mdformat 未安装，跳过 Markdown 格式化"
+    print_info "运行 ./scripts/dev.sh sync 安装依赖"
   fi
 }
 
@@ -255,6 +266,8 @@ run_all_checks() {
   print_title "运行代码质量检查（对齐 CI Checks）"
   run_markdownlint
   echo
+  run_mdformat
+  echo
   run_ruff_check
   echo
   run_ruff_format
@@ -277,6 +290,14 @@ fix_code() {
     print_success "Markdown 修复完成"
   else
     print_warn "markdownlint-cli2 未安装，跳过"
+  fi
+
+  print_step "格式化 Markdown 文件..."
+  if command -v mdformat &> /dev/null; then
+    uv run mdformat docs/**/*.md scripts/**/*.md README.md CONTRIBUTING.md NOTICE.md QUICKSTART.md
+    print_success "Markdown 格式化完成"
+  else
+    print_warn "mdformat 未安装，跳过 Markdown 格式化"
   fi
 
   print_step "格式化 Python 代码..."
@@ -1119,7 +1140,7 @@ show_menu() {
   echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo -e "${BLUE}代码检查（CI Checks）${NC}"
   echo -e "  ${BLUE}8${NC}) 运行所有检查    ${BLUE}9${NC}) 自动修复问题"
-  echo -e "  ${BLUE}10${NC}) Markdownlint   ${BLUE}11${NC}) Ruff 检查      ${BLUE}12${NC}) Ruff 格式检查"
+  echo -e "  ${BLUE}10${NC}) Markdownlint   ${BLUE}10a${NC}) Mdformat       ${BLUE}11${NC}) Ruff 检查      ${BLUE}12${NC}) Ruff 格式检查"
   echo -e "  ${BLUE}13${NC}) ShellCheck     ${BLUE}14${NC}) shfmt 格式检查  ${BLUE}15${NC}) uv.lock 检查"
   echo -e "  ${BLUE}16${NC}) 类型检查（pyright）"
   echo
@@ -1173,6 +1194,7 @@ case "$1" in
   check | c) run_all_checks ;;
   fix | fmt) fix_code ;;
   markdownlint | md) run_markdownlint ;;
+  mdformat | mdf) run_mdformat ;;
   lint | l) run_ruff_check ;;
   format) run_ruff_format ;;
   type | ty) run_basedpyright ;;
@@ -1256,6 +1278,7 @@ case "$1" in
         8) run_all_checks ;;
         9) fix_code ;;
         10) run_markdownlint ;;
+        10a) run_mdformat ;;
         11) run_ruff_check ;;
         12) run_ruff_format ;;
         13) run_shellcheck ;;
