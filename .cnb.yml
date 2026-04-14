@@ -4,11 +4,11 @@
     tags: cnb:arch:amd64
     cpus: 24
   docker:
-    build: .ide/Dockerfile
+    image: docker.cnb.cool/ysundy/beancount/beancount-daoru/beancount-daoru:latest
     volumes:
-      - /root/.cache/uv
+      - /opt/models
   before_script:
-    # Dockerfile 已包含所有必要工具，此处仅做验证
+    # 验证工具可用性
     - |
       echo "🔍 验证工具可用性..."
       for tool in ruff basedpyright markdownlint-cli2 shellcheck shfmt pre-commit; do
@@ -51,7 +51,7 @@
         shfmt:
           script: |
             echo "🔍 检查 Shell 脚本格式..."
-            shfmt -d -sr scripts/*.sh  # 添加 -sr，与 pre-commit 一致
+            shfmt -d -sr scripts/*.sh
             echo "✅ shfmt 检查完成"
 
         uvlock:
@@ -72,8 +72,12 @@
             uv run pytest --verbose -m "not llm"
         llm-tests:
           script: |
-            uv sync --extra llm --group dev
-            uv run pytest --verbose -m "llm"
+            if [ -f /opt/models/qwen3-4b-instruct.gguf ]; then
+              uv sync --extra llm --group dev
+              uv run pytest --verbose -m "llm"
+            else
+              echo "⚠️ 跳过 LLM 测试：模型未挂载"
+            fi
 
 # main 分支配置
 main:
@@ -94,7 +98,9 @@ main:
       runner:
         tags: cnb:arch:amd64
       docker:
-        image: python:3.12
+        image: docker.cnb.cool/ysundy/beancount/beancount-daoru/beancount-daoru:latest
+        volumes:
+          - /opt/models
       stages:
         - name: Build and Test
           script: |
@@ -116,19 +122,21 @@ $:
   vscode:
     clouddev:
       docker:
-        # build: .ide/Dockerfile
-        # 指定云原生开发启动时的基础镜像为当前镜像
         image: docker.cnb.cool/ysundy/beancount/beancount-daoru/beancount-daoru:latest
+        # 卷挂载配置
+        volumes:
+          - /opt/models # 持久化模型目录
       runner:
         tags: cnb:arch:amd64
         cpus: 10
-      # 添加环境变量配置
       env:
-        LLAMA_MODEL: /opt/models/tinyllama.gguf # 默认测试模型
+        LLAMA_MODEL: /opt/models/qwen3-4b-instruct.gguf
         LLAMA_HOST: 0.0.0.0
         LLAMA_PORT: 8080
-        LLAMA_N_GPU_LAYERS: 0 # CPU 模式（CNB 环境通常无 GPU）
+        LLAMA_N_GPU_LAYERS: 0
         LLAMA_CONTEXT_SIZE: 2048
+        TEST_EMBEDDING_MODEL: /opt/models/embeddinggemma-300m-Q4_0.gguf
+        TEST_CHAT_MODEL: /opt/models/qwen3-4b-instruct.gguf
       services:
         - vscode
         - docker
@@ -138,7 +146,27 @@ $:
             set -e
             cd /workspace
 
-            # 生成 .env（如果不存在）
+            # 检查模型是否已挂载
+            if [ -d /opt/models ] && [ "$(ls -A /opt/models 2>/dev/null)" ]; then
+              echo "✅ 模型卷已挂载，包含以下模型："
+              ls -lh /opt/models/
+            else
+              echo "⚠️ 模型卷为空或未挂载"
+              echo "💡 首次使用需要下载模型到 /opt/models"
+
+              # 可选：首次使用时自动下载模型
+              if [ "${DOWNLOAD_MODELS_ON_FIRST_RUN:-false}" = "true" ]; then
+                echo "📦 下载 Embedding 模型..."
+                curl -L -o /opt/models/embeddinggemma-300m-Q4_0.gguf \
+                  "https://huggingface.co/unsloth/embeddinggemma-300m-GGUF/resolve/main/embeddinggemma-300m-Q4_0.gguf"
+
+                echo "📦 下载 Qwen3-4B 模型..."
+                curl -L -o /opt/models/qwen3-4b-instruct.gguf \
+                  "https://huggingface.co/MaziyarPanahi/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507.Q4_K_M.gguf"
+              fi
+            fi
+
+            # 生成 .env 文件
             if [ ! -f .env ]; then
               cat > .env << "EOF"
             # .env - 环境配置文件
@@ -158,18 +186,12 @@ $:
             export LLAMA_MODEL_DIR="/opt/models"
 
             # ===== 模型文件配置 =====
-            # 默认模型（用于一般使用）
-            export LLAMA_MODEL="${LLAMA_MODEL_DIR}/tinyllama.gguf"
-
             # 测试模型（用于 pytest，优先级高于 LLAMA_MODEL）
             # Embedding 模型（用于向量嵌入测试）
             export TEST_EMBEDDING_MODEL="${LLAMA_MODEL_DIR}/embeddinggemma-300m-Q4_0.gguf"
 
             # Chat Completion 模型（用于对话补全测试）
-            export TEST_CHAT_MODEL="${LLAMA_MODEL_DIR}/qwen3-4b-instruct-2507-iq4_nl.gguf"
-
-            # 备用模型（当主模型不可用时使用）
-            export TEST_FALLBACK_MODEL="${LLAMA_MODEL_DIR}/tinyllama.gguf"
+            export TEST_CHAT_MODEL="${LLAMA_MODEL_DIR}/qwen3-4b-instruct.gguf"
 
             # 服务配置
             export LLAMA_HOST="0.0.0.0"
@@ -202,33 +224,20 @@ $:
               echo "⚠️ .env 文件不存在，跳过加载"
             fi
 
-            # 安装项目依赖
-            echo "📦 安装项目依赖（可能需要几分钟）..."
+            # 安装依赖
+            echo "📦 安装项目依赖..."
             uv sync --all-extras --dev --link-mode=copy
             echo "✅ 依赖安装完成"
 
             # 安装 pre-commit
-            echo "🔧 安装 pre-commit..."
-            uv tool install pre-commit --with pre-commit-uv || true
             if [ -d /workspace/.git ]; then
+              echo "🔧 发现git仓库，开始安装 pre-commit..."
+              uv tool install pre-commit --with pre-commit-uv || true
               pre-commit install || true
               pre-commit install --hook-type pre-push || true
               echo "✅ pre-commit 配置完成"
             else
-              echo "⚠️ 不是 Git 仓库，跳过 pre-commit 安装"
+                echo "⚠️ 不是 Git 仓库，跳过 pre-commit 安装"
             fi
 
-        - name: Test llama-server
-          script: |
-            echo "🦙 测试 llama-server..."
-            # 后台启动服务
-            start-llama &
-            # 等待服务就绪
-            sleep 3
-            status-llama
-            # 测试 API
-            if curl -s http://localhost:8080/health > /dev/null; then
-              echo "✅ llama-server API 正常"
-            else
-              echo "⚠️ 健康检查端点不可用（可能版本差异）"
-            fi
+            echo "✅ 环境配置完成"
