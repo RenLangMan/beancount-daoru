@@ -175,15 +175,21 @@ def transaction_with_posting_flag() -> Transaction:
 def sample_directives(sample_account_meta: Meta) -> list[Directive]:
     """创建示例指令列表."""
     return [
-        Open(sample_account_meta, date(2024, 1, 1), "Assets:Test:Checking", [], None),
         Open(
-            Meta({"desc": "Food expenses"}),
-            date(2024, 1, 1),
-            "Expenses:Test:Food",
-            [],
-            None,
+            meta=sample_account_meta,
+            date=date(2024, 1, 1),
+            account="Assets:Test:Checking",
+            currencies=[],
+            booking=None,
         ),
-        Close(Meta({}), date(2024, 12, 31), "Assets:Test:Checking"),
+        Open(
+            meta=Meta({"desc": "Food expenses"}),
+            date=date(2024, 1, 1),
+            account="Expenses:Test:Food",
+            currencies=[],
+            booking=None,
+        ),
+        Close(meta=Meta({}), date=date(2024, 12, 31), account="Assets:Test:Checking"),
     ]
 
 
@@ -422,11 +428,11 @@ class TestHistoryIndex:
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
         directive = Open(
-            Meta({"desc": "Test account"}),
-            date(2024, 1, 1),
-            "Assets:Test:Checking",
-            [],
-            None,
+            meta=Meta({"desc": "Test account"}),
+            date=date(2024, 1, 1),
+            account="Assets:Test:Checking",
+            currencies=[],
+            booking=None,
         )
 
         await index.add(directive)
@@ -440,8 +446,20 @@ class TestHistoryIndex:
         """测试重复添加同一账户的 Open 指令抛出异常."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
-        directive1 = Open(Meta({}), date(2024, 1, 1), "Assets:Test:Checking", [], None)
-        directive2 = Open(Meta({}), date(2024, 1, 2), "Assets:Test:Checking", [], None)
+        directive1 = Open(
+            meta=Meta({}),
+            date=date(2024, 1, 1),
+            account="Assets:Test:Checking",
+            currencies=[],
+            booking=None,
+        )
+        directive2 = Open(
+            meta=Meta({}),
+            date=date(2024, 1, 2),
+            account="Assets:Test:Checking",
+            currencies=[],
+            booking=None,
+        )
 
         await index.add(directive1)
 
@@ -456,9 +474,15 @@ class TestHistoryIndex:
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
         open_directive = Open(
-            Meta({}), date(2024, 1, 1), "Assets:Test:Checking", [], None
+            meta=Meta({}),
+            date=date(2024, 1, 1),
+            account="Assets:Test:Checking",
+            currencies=[],
+            booking=None,
         )
-        close_directive = Close(Meta({}), date(2024, 12, 31), "Assets:Test:Checking")
+        close_directive = Close(
+            meta=Meta({}), date=date(2024, 12, 31), account="Assets:Test:Checking"
+        )
 
         await index.add(open_directive)
         assert "Assets:Test:Checking" in index.accounts
@@ -473,7 +497,9 @@ class TestHistoryIndex:
         """测试关闭不存在的账户抛出异常."""
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
-        directive = Close(Meta({}), date(2024, 12, 31), "Assets:NonExistent")
+        directive = Close(
+            meta=Meta({}), date=date(2024, 12, 31), account="Assets:NonExistent"
+        )
 
         with pytest.raises(ValueError, match="close non-existing account"):
             await index.add(directive)
@@ -595,7 +621,13 @@ class TestHistoryIndex:
         encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
         index = HistoryIndex(encoder=encoder, ndim=3)
 
-        open_directive = Open(Meta({}), date(2024, 1, 1), "Assets:Test", [], None)
+        open_directive = Open(
+            meta=Meta({}),
+            date=date(2024, 1, 1),
+            account="Assets:Test",
+            currencies=[],
+            booking=None,
+        )
         await index.add(open_directive)
 
         txn = Transaction(
@@ -853,7 +885,11 @@ class TestAccountPredictor:
         )
 
         open_directive = Open(
-            Meta({"desc": "Test desc"}), date(2024, 1, 1), "Assets:Test", [], None
+            meta=Meta({"desc": "Test desc"}),
+            date=date(2024, 1, 1),
+            account="Assets:Test",
+            currencies=[],
+            booking=None,
         )
         await index.add(open_directive)
 
@@ -893,7 +929,13 @@ class TestAccountPredictor:
             ],
         )
 
-        open_directive = Open(Meta({}), date(2024, 1, 1), "Assets:Test", [], None)
+        open_directive = Open(
+            meta=Meta({}),
+            date=date(2024, 1, 1),
+            account="Assets:Test",
+            currencies=[],
+            booking=None,
+        )
         await index.add(open_directive)
 
         txn = Transaction(
