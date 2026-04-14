@@ -515,6 +515,13 @@ show_aliases() {
   echo "  ./scripts/dev.sh ci                # CI 检查（无修复）"
   echo "  ./scripts/dev.sh precommit-install # 安装 pre-commit hooks"
   echo "  ./scripts/dev.sh precommit         # 运行 pre-commit 检查"
+  echo
+  echo -e "${CYAN}LLM (llama.cpp):${NC}"
+  echo "  ./scripts/dev.sh llm-status        # LLM 服务状态"
+  echo "  ./scripts/dev.sh llm-start         # 启动 LLM 服务"
+  echo "  ./scripts/dev.sh llm-stop          # 停止 LLM 服务"
+  echo "  ./scripts/dev.sh llm-test          # 测试 LLM API"
+  echo "  ./scripts/dev.sh llm-download      # 下载模型"
 }
 
 # ==================== 完整流水线 ====================
@@ -658,6 +665,39 @@ find_llama_cmd() {
   fi
 }
 
+# 检查模型文件是否存在
+check_model_exists() {
+  local model_path="${1:-$LLAMA_MODEL}"
+  if [ -n "$model_path" ] && [ -f "$model_path" ]; then
+    return 0
+  elif [ -f "/opt/models/qwen3-4b-instruct.gguf" ]; then
+    LLAMA_MODEL="/opt/models/qwen3-4b-instruct.gguf"
+    export LLAMA_MODEL
+    return 0
+  elif [ -f "/opt/models/tinyllama.gguf" ]; then
+    LLAMA_MODEL="/opt/models/tinyllama.gguf"
+    export LLAMA_MODEL
+    return 0
+  else
+    return 1
+  fi
+}
+
+# 下载模型（使用 init-models.sh）
+download_models() {
+  print_title "下载 LLM 模型"
+
+  if [ -f "scripts/init-models.sh" ]; then
+    print_step "运行 init-models.sh..."
+    bash scripts/init-models.sh
+    print_success "模型下载完成"
+  else
+    print_error "未找到 scripts/init-models.sh"
+    print_info "请手动下载模型到 /opt/models/"
+    return 1
+  fi
+}
+
 run_llm_status() {
   print_title "LLM 服务状态"
 
@@ -671,15 +711,27 @@ run_llm_status() {
     return 1
   fi
 
+  # 检查模型
+  echo -e "${BLUE}模型状态:${NC}"
+  if check_model_exists; then
+    print_success "模型文件存在: $LLAMA_MODEL"
+    ls -lh "$LLAMA_MODEL" 2>/dev/null | awk '{print "  大小: " $5}'
+  else
+    print_warn "模型文件不存在"
+    print_info "运行 './scripts/dev.sh llm-download' 下载模型"
+    print_info "或手动放置模型到 /opt/models/"
+  fi
+  echo
+
   print_step "检查服务状态..."
   if pgrep -f "llama-server" >/dev/null 2>&1; then
     print_success "llama-server 运行中"
     local pid port
     pid=$(pgrep -f "llama-server" | head -1)
-    port=$(netstat -tlnp 2>/dev/null | grep "$pid" | grep -oP ':\K\d+' | head -1 || echo "8080")
+    port=$(netstat -tlnp 2>/dev/null | grep "$pid" | grep -oP ':\K\d+' | head -1 || echo "${LLAMA_PORT:-8080}")
     echo "  PID:  $pid"
     echo "  端口: ${port:-8080}"
-    echo "  URL:  http://localhost:${port:-8080}/v1/models"
+    echo "  URL:  http://localhost:${port:-8080}"
   else
     print_warn "llama-server 未运行"
     print_info "使用 './scripts/dev.sh llm-start' 启动服务"
@@ -703,10 +755,26 @@ run_llm_start() {
     return 0
   fi
 
-  local model="${LLAMA_MODEL:-/opt/models/tinyllama.gguf}"
+  # 检查模型
+  if ! check_model_exists; then
+    print_warn "模型文件不存在: ${LLAMA_MODEL:-未设置}"
+    echo
+    read -r -p "是否下载模型？(y/N): " -n 1
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+      if ! download_models; then
+        return 1
+      fi
+    else
+      print_info "请先下载模型或设置 LLAMA_MODEL 环境变量"
+      return 1
+    fi
+  fi
+
+  local model="${LLAMA_MODEL:-/opt/models/qwen3-4b-instruct.gguf}"
   local host="${LLAMA_HOST:-0.0.0.0}"
   local port="${LLAMA_PORT:-8080}"
-  local gpu_layers="${LLAMA_N_GPU_LAYERS:-99}"
+  local gpu_layers="${LLAMA_N_GPU_LAYERS:-0}"
   local ctx_size="${LLAMA_CONTEXT_SIZE:-2048}"
 
   print_step "启动 llama-server..."
@@ -716,28 +784,32 @@ run_llm_start() {
   echo "  上下文: $ctx_size"
 
   if [ ! -f "$model" ]; then
-    print_warn "模型文件不存在: $model"
-    print_info "请下载模型或设置 LLAMA_MODEL 环境变量"
+    print_error "模型文件不存在: $model"
+    print_info "请运行 './scripts/dev.sh llm-download' 下载模型"
+    return 1
   fi
 
   # 后台启动
+  mkdir -p logs
   "$llama_server" \
     -m "$model" \
     --host "$host" \
     --port "$port" \
     -ngl "$gpu_layers" \
     -c "$ctx_size" \
-    &>"llama-server.log" &
+    &>"logs/llama-server.log" &
 
   local pid=$!
   sleep 2
 
   if kill -0 "$pid" 2>/dev/null; then
     print_success "llama-server 已启动 (PID: $pid)"
-    print_info "日志: llama-server.log"
+    print_info "日志: logs/llama-server.log"
     print_info "API: http://$host:$port"
+    print_info "健康检查: curl http://$host:$port/health"
   else
-    print_error "启动失败，请检查 llama-server.log"
+    print_error "启动失败，请检查 logs/llama-server.log"
+    tail -20 logs/llama-server.log
     return 1
   fi
 }
@@ -773,6 +845,8 @@ run_llm_test() {
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
       run_llm_start
+      # 等待服务启动
+      sleep 3
     else
       return 1
     fi
@@ -780,19 +854,40 @@ run_llm_test() {
 
   # 检查服务可用性
   print_step "测试 API 端点..."
-  if curl -s --max-time 5 "$base_url/v1/models" >/dev/null 2>&1; then
-    print_success "API 服务正常"
-  else
+
+  # 尝试多种健康检查端点
+  local health_urls=(
+    "$base_url/health"
+    "$base_url/v1/models"
+    "$base_url"
+  )
+
+  local api_ok=false
+  for url in "${health_urls[@]}"; do
+    if curl -s --max-time 5 "$url" >/dev/null 2>&1; then
+      print_success "API 服务正常 ($url)"
+      api_ok=true
+      break
+    fi
+  done
+
+  if [ "$api_ok" = false ]; then
     print_error "API 服务不可用，请检查日志"
+    print_info "运行: ./scripts/dev.sh llm-status"
     return 1
   fi
 
   # 获取模型信息
   echo -e "\n${BLUE}模型信息:${NC}"
-  curl -s "$base_url/v1/models" | python -m json.tool 2>/dev/null ||
-    curl -s "$base_url/v1/models"
+  if curl -s "$base_url/v1/models" 2>/dev/null | python -m json.tool 2>/dev/null; then
+    :
+  elif curl -s "$base_url/v1/models" 2>/dev/null; then
+    :
+  else
+    print_info "模型信息端点不可用"
+  fi
 
-  # 测试推理
+  # 测试推理（使用 chat completions 端点）
   echo -e "\n${BLUE}测试推理:${NC}"
   local prompt="Hello, how are you?"
   echo -e "${CYAN}Prompt:${NC} $prompt"
@@ -801,7 +896,7 @@ run_llm_test() {
   response=$(curl -s --max-time 60 \
     -X POST "$base_url/v1/chat/completions" \
     -H "Content-Type: application/json" \
-    -d "{\"model\":\"local\",\"messages\":[{\"role\":\"user\",\"content\":\"$prompt\"}],\"max_tokens\":100}" \
+    -d "{\"model\":\"local\",\"messages\":[{\"role\":\"user\",\"content\":\"$prompt\"}],\"max_tokens\":50}" \
     2>&1)
 
   if echo "$response" | grep -q "content"; then
@@ -809,12 +904,41 @@ run_llm_test() {
     echo -e "\n${CYAN}Response:${NC}"
     echo "$response" | python -c "
 import sys, json
-data = json.load(sys.stdin)
-print(data.get('choices', [{}])[0].get('message', {}).get('content', 'No content'))
+try:
+    data = json.load(sys.stdin)
+    content = data.get('choices', [{}])[0].get('message', {}).get('content', '')
+    print(content[:500] + '...' if len(content) > 500 else content)
+except:
+    print('无法解析响应')
 " 2>/dev/null || echo "$response"
   else
-    print_error "推理失败"
-    echo "$response"
+    # 尝试 completion 端点（旧版 API）
+    print_info "尝试使用 completion 端点..."
+    response=$(curl -s --max-time 60 \
+      -X POST "$base_url/completion" \
+      -H "Content-Type: application/json" \
+      -d "{\"prompt\":\"$prompt\",\"n_predict\":50}" \
+      2>&1)
+
+    if echo "$response" | grep -q "content"; then
+      echo -e "${GREEN}✅ 测试成功${NC}"
+      echo "$response" | python -m json.tool 2>/dev/null || echo "$response"
+    else
+      print_error "推理失败"
+      echo "响应: $response"
+    fi
+  fi
+}
+
+run_llm_download() {
+  print_title "下载 LLM 模型到卷挂载目录"
+
+  if [ -f "scripts/init-models.sh" ]; then
+    bash scripts/init-models.sh
+  else
+    print_error "未找到 scripts/init-models.sh"
+    print_info "请确保 init-models.sh 存在"
+    return 1
   fi
 }
 
@@ -858,11 +982,12 @@ show_menu() {
   echo -e "${MAGENTA}LLM (llama.cpp)${NC}"
   echo -e "  ${MAGENTA}23${NC}) LLM 服务状态    ${MAGENTA}24${NC}) 启动 LLM 服务"
   echo -e "  ${MAGENTA}25${NC}) 停止 LLM 服务   ${MAGENTA}26${NC}) 测试 LLM API"
+  echo -e "  ${MAGENTA}27${NC}) 下载模型"
   echo
   echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo -e "  ${YELLOW}0${NC}) 退出            ${YELLOW}h${NC}) 显示快捷命令"
   echo
-  echo -n "请选择 [0-26]: "
+  echo -n "请选择 [0-27]: "
 }
 
 # ==================== 命令行参数处理 ====================
@@ -926,6 +1051,7 @@ case "$1" in
   llm-start) run_llm_start ;;
   llm-stop) run_llm_stop ;;
   llm-test) run_llm_test ;;
+  llm-download) run_llm_download ;;
   llm) run_llm_status ;;
 
   # 帮助
@@ -978,6 +1104,7 @@ case "$1" in
         24) run_llm_start ;;
         25) run_llm_stop ;;
         26) run_llm_test ;;
+        27) run_llm_download ;;
         h | H) show_aliases ;;
         *) print_error "无效选择" ;;
       esac
