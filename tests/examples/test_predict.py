@@ -58,14 +58,14 @@ def start_llama_server(  # noqa: PLR0913
     if shutil.which(exec_name) is None:
         pytest.skip(f"{exec_name!r} not in PATH")
 
-    # 使用简单的类定义，不重写 __init__
+    # 使用简单的类定义,不重写 __init__
     class Starter(ProcessStarter):
         """Llama 服务器进程启动器。"""
-        
+
         # 直接定义类属性
         max_read_lines = sys.maxsize
         timeout = 600
-        
+
         @property
         def args(self) -> list[str]:
             cmd_args: list[str] = [exec_name]
@@ -76,7 +76,8 @@ def start_llama_server(  # noqa: PLR0913
             elif model_hf:
                 cmd_args.extend(["-hf", model_hf])
             else:
-                raise ValueError("Either model_path or model_hf must be provided")
+                msg = "Either model_path or model_hf must be provided"
+                raise ValueError(msg)
 
             cmd_args.extend(
                 [
@@ -92,7 +93,7 @@ def start_llama_server(  # noqa: PLR0913
             if is_embedding:
                 cmd_args.append("--embedding")
             return cmd_args
-        
+
         @property
         def pattern(self) -> str:
             return "main: server is listening on"
@@ -104,6 +105,7 @@ def start_llama_server(  # noqa: PLR0913
     proc_info = xprocess.getinfo(server_name)
     if proc_info.isrunning():
         proc_info.terminate()
+
 
 @pytest.fixture(scope="session")
 def embedding_server(xprocess: XProcess) -> Generator[None]:

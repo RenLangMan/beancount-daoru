@@ -53,49 +53,8 @@ RUN git clone --depth 1 https://github.com/ggerganov/llama.cpp /opt/llama.cpp &&
     ln -sf /opt/llama.cpp/build/bin/llama-server /usr/local/bin/llama-server && \
     ln -sf /opt/llama.cpp/build/bin/llama-cli /usr/local/bin/llama-cli
 
-# ==================== 下载模型（使用验证过的源）====================
+# ==================== 创建模型目录（挂载点）====================
 RUN mkdir -p /opt/models
-
-# 1. 下载 Embedding 模型 (300MB) - 使用 unsloth 源
-RUN echo "📦 下载 Embedding 模型 (300MB)..." && \
-    curl -L --retry 3 --retry-delay 2 -o /opt/models/embeddinggemma-300m-Q4_0.gguf \
-    "https://huggingface.co/unsloth/embeddinggemma-300m-GGUF/resolve/main/embeddinggemma-300m-Q4_0.gguf" && \
-    if [ $(stat -c%s "/opt/models/embeddinggemma-300m-Q4_0.gguf") -lt 1000000 ]; then \
-        echo "❌ 下载失败，文件过小" && exit 1; \
-    fi && \
-    echo "✅ Embedding 模型下载完成: $(ls -lh /opt/models/embeddinggemma-300m-Q4_0.gguf)"
-
-# 2. 下载 Chat Completion 模型 (2.5GB) - 使用 MaziyarPanahi 源（已验证可用）
-RUN echo "📦 下载 Qwen3-4B 模型 (约 2.5GB，请耐心等待)..." && \
-    curl -L --retry 3 --retry-delay 2 -o /opt/models/qwen3-4b-instruct.gguf \
-    "https://huggingface.co/MaziyarPanahi/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507.Q4_K_M.gguf" && \
-    if [ $(stat -c%s "/opt/models/qwen3-4b-instruct.gguf") -lt 1000000000 ]; then \
-        echo "❌ 下载失败，文件过小" && exit 1; \
-    fi && \
-    echo "✅ Qwen3-4B 模型下载完成: $(ls -lh /opt/models/qwen3-4b-instruct.gguf)"
-
-# # 3. 下载 TinyLlama 备用模型 (600MB) - 使用 TheBloke 源
-# RUN echo "📦 下载 TinyLlama 备用模型 (600MB)..." && \
-#     curl -L --retry 3 --retry-delay 2 -o /opt/models/tinyllama.gguf \
-#     "https://huggingface.co/TheBloke/TinyLlama-1.1B-GGUF/resolve/main/tinyllama-1.1b-q4_0.gguf" && \
-#     if [ $(stat -c%s "/opt/models/tinyllama.gguf") -lt 100000000 ]; then \
-#         echo "❌ 下载失败，文件过小" && exit 1; \
-#     fi && \
-#     echo "✅ TinyLlama 模型下载完成: $(ls -lh /opt/models/tinyllama.gguf)"
-
-# 验证所有模型文件
-RUN echo "=== 预装模型列表 ===" && \
-    ls -lh /opt/models/*.gguf && \
-    echo "总大小: $(du -sh /opt/models)" && \
-    echo "==================="
-
-# 设置环境变量（更新 Chat 模型路径）
-ENV TEST_EMBEDDING_MODEL=/opt/models/embeddinggemma-300m-Q4_0.gguf
-ENV TEST_CHAT_MODEL=/opt/models/qwen3-4b-instruct.gguf
-ENV TEST_FALLBACK_MODEL=/opt/models/tinyllama.gguf
-ENV EMBEDDING_PORT=1314
-ENV CHAT_PORT=9527
-ENV CTX_SIZE=8192
 
 # ==================== 创建管理脚本 ====================
 RUN cat > /usr/local/bin/start-llama << 'EOF'
@@ -110,6 +69,7 @@ THREADS="${LLAMA_THREADS:-}"
 
 if [ ! -f "$MODEL" ]; then
     echo "❌ 错误: 模型文件不存在: $MODEL"
+    echo "💡 提示: 请确保卷已挂载且模型文件存在"
     exit 1
 fi
 
@@ -166,101 +126,40 @@ echo '{"prompt":"Hello","n_predict":10}' | \
     -d @- > /dev/null && echo "✅ 补全接口测试通过" || echo "⚠️ 补全接口测试失败"
 EOF
 
-# ==================== 双服务启动脚本（用于测试）====================
-RUN cat > /usr/local/bin/start-llama-services << 'EOF'
-#!/bin/bash
-# 启动两个 LLM 服务（支持本地模型和在线下载）
-
-echo "🚀 启动 LLM 服务..."
-
-# 配置参数
-EMBEDDING_PORT="${EMBEDDING_PORT:-1314}"
-CHAT_PORT="${CHAT_PORT:-9527}"
-CTX_SIZE="${CTX_SIZE:-8192}"
-
-# ==================== Embedding 服务 ====================
-# 优先使用本地模型，否则在线下载
-if [ -f "/opt/models/embeddinggemma-300m-Q4_0.gguf" ]; then
-    echo "📁 使用本地 Embedding 模型"
-    EMBEDDING_CMD="llama-server -m /opt/models/embeddinggemma-300m-Q4_0.gguf --host 0.0.0.0 --port $EMBEDDING_PORT --embedding -c 1024 -ngl 0"
-else
-    echo "🌐 在线下载 Embedding 模型"
-    EMBEDDING_CMD="llama-server -hf unsloth/embeddinggemma-300m-GGUF:Q4_0 --host 0.0.0.0 --port $EMBEDDING_PORT --embedding -c 1024 -ngl 0"
-fi
-
-# ==================== Chat 服务 ====================
-# 优先使用本地模型，否则在线下载
-if [ -f "/opt/models/qwen3-4b-instruct.gguf" ]; then
-    echo "📁 使用本地 Chat 模型"
-    CHAT_CMD="llama-server -m /opt/models/qwen3-4b-instruct.gguf --host 0.0.0.0 --port $CHAT_PORT -c $CTX_SIZE -ngl 0"
-else
-    echo "🌐 在线下载 Chat 模型 (首次启动较慢)"
-    CHAT_CMD="llama-server -hf unsloth/Qwen3-4B-Instruct-2507-GGUF:IQ4_NL --host 0.0.0.0 --port $CHAT_PORT --ctx-size $CTX_SIZE -ngl 0"
-fi
-
-echo ""
-echo "📊 服务配置："
-echo "  Embedding: 端口 $EMBEDDING_PORT, 上下文 1024"
-echo "  Chat: 端口 $CHAT_PORT, 上下文 $CTX_SIZE"
-echo ""
-
-# 启动服务
-echo "启动 Embedding 服务..."
-$EMBEDDING_CMD &
-EMBEDDING_PID=$!
-
-echo "启动 Chat 服务..."
-$CHAT_CMD &
-CHAT_PID=$!
-
-echo ""
-echo "✅ 服务已启动"
-echo "  Embedding PID: $EMBEDDING_PID"
-echo "  Chat PID: $CHAT_PID"
-echo ""
-echo "📝 测试命令："
-echo "  curl http://localhost:$EMBEDDING_PORT/health"
-echo "  curl http://localhost:$CHAT_PORT/health"
-echo "  curl -X POST http://localhost:$CHAT_PORT/completion -H 'Content-Type: application/json' -d '{\"prompt\":\"Hello\",\"n_predict\":20}'"
-
-# 等待进程
-wait $EMBEDDING_PID $CHAT_PID
-EOF
-
 RUN chmod +x /usr/local/bin/start-llama \
     /usr/local/bin/stop-llama \
     /usr/local/bin/status-llama \
-    /usr/local/bin/test-llama \
-    /usr/local/bin/start-llama-services
+    /usr/local/bin/test-llama
 
-# ==================== 验证工具版本 ====================
+# ==================== VSCode 配置 ====================
+RUN mkdir -p /root/.vscode-server/data/Machine && \
+    cat > /root/.vscode-server/data/Machine/settings.json << 'EOF'
+{
+    "files.watcherExclude": {
+        "**/opt/models/**": true,
+        "**/models/**": true,
+        "**/llama.cpp/**": true,
+        "**/.git/objects/**": true,
+        "**/__pycache__/**": true,
+        "**/.pytest_cache/**": true
+    },
+    "search.exclude": {
+        "**/opt/models": true,
+        "**/llama.cpp": true
+    },
+    "git.autoRepositoryDetection": true,
+    "git.enabled": true
+}
+EOF
+
+# 设置 bash 启动时自动进入工作目录
+RUN echo 'cd /workspace 2>/dev/null || true' >> /root/.bashrc
+
+# 验证工具版本
 RUN echo "=== Tool Versions ===" && \
     echo "Go: $(go version)" && \
     echo "Node: $(node --version)" && \
-    echo "npm: $(npm --version)" && \
-    echo "markdownlint-cli2: $(markdownlint-cli2 --version 2>/dev/null | head -n1)" && \
-    echo "basedpyright: $(basedpyright --version 2>/dev/null | head -n1)" && \
-    echo "shellcheck: $(shellcheck --version 2>/dev/null | head -n1)" && \
-    echo "shfmt: $(shfmt --version)" && \
     echo "uv: $(uv --version)" && \
     echo "Python: $(python --version)" && \
-    echo "ruff: $(ruff --version)" && \
-    echo "pre-commit: $(pre-commit --version 2>/dev/null | head -n1)" && \
-    echo "gcc: $(gcc --version 2>/dev/null | head -n1)" && \
-    echo "bison: $(bison --version 2>/dev/null | head -n1)" && \
-    echo "cmake: $(cmake --version 2>/dev/null | head -n1)" && \
     echo "llama-server: $(llama-server --version 2>&1 | head -n1)" && \
     echo "===================="
-
-# 显示模型文件信息
-RUN echo "=== 预装模型文件 ===" && \
-    ls -lh /opt/models/ && \
-    echo "===================="
-
-WORKDIR /workspace
-
-# 默认命令（单服务模式）
-# CMD ["start-llama"]
-
-# 推荐使用双服务模式（取消注释下面这行）
-# CMD ["start-llama-services"]
