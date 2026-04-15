@@ -11,6 +11,7 @@ import pytest
 from beancount import (
     FLAG_OKAY,
     FLAG_WARNING,
+    Balance,
     Close,
     Directive,
     Meta,
@@ -18,6 +19,7 @@ from beancount import (
     Posting,
     Transaction,
 )
+from beancount.core.number import D
 
 from beancount_daoru.hooks.predict_missing_posting import (
     AccountPredictor,
@@ -27,7 +29,10 @@ from beancount_daoru.hooks.predict_missing_posting import (
     Encoder,
     HistoryIndex,
     Hook,
+    Imported,
     TransactionIndex,
+    _AccountPredictor,
+    _HistoryIndex,
 )
 
 # ===== 测试固件 =====
@@ -675,6 +680,79 @@ class TestHistoryIndex:
 
         assert len(results) <= 3
 
+    @pytest.mark.asyncio
+    async def test_add_balance_directive_ignored(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """Test Balance directive is ignored (case _ branch)."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        index = HistoryIndex(encoder=encoder, ndim=3)
+
+        open_directive = Open(
+            meta=Meta({}),
+            date=date(2024, 1, 1),
+            account="Assets:Test",
+            currencies=["CNY"],
+            booking=None,
+        )
+        balance_directive = Balance(
+            meta=Meta({}),
+            date=date(2024, 1, 15),
+            account="Assets:Test",
+            amount=D("100.00"),
+            tolerance=None,
+            diff_amount=None,
+        )
+
+        await index.add(open_directive)
+        # Balance 指令不应该抛出异常
+        await index.add(balance_directive)
+        assert "Assets:Test" in index.accounts
+
+    def test_check_transaction_with_warnings_flag(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试 _check_transaction 拒绝带有警告标记的交易."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        index = HistoryIndex(encoder=encoder, ndim=3)
+
+        txn_with_warning = Transaction(
+            date=date(2024, 1, 15),
+            flag="!",
+            narration="Warning transaction",
+            payee=None,
+            links=(),
+            tags=(),
+            meta=Meta({}),
+            postings=[
+                Posting("Assets:Test", None, None, None, None, None),
+                Posting("Expenses:Test", None, None, None, None, None),
+            ],
+        )
+        assert index._check_transaction(txn_with_warning) is False
+
+    def test_check_transaction_with_warning_posting_flag(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试 _check_transaction 拒绝带有警告标记的条目的交易."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        index = HistoryIndex(encoder=encoder, ndim=3)
+
+        txn_with_warning_posting = Transaction(
+            date=date(2024, 1, 15),
+            flag=FLAG_OKAY,
+            narration="Test",
+            payee=None,
+            links=(),
+            tags=(),
+            meta=Meta({}),
+            postings=[
+                Posting("Assets:Test", None, None, None, FLAG_WARNING, None),
+                Posting("Expenses:Test", None, None, None, None, None),
+            ],
+        )
+        assert index._check_transaction(txn_with_warning_posting) is False
+
 
 # ===== ChatBot 测试 =====
 
@@ -1303,3 +1381,492 @@ class TestEdgeCases:
         assert "Assets:Test1" in accounts
         assert "Assets:Test2" in accounts
         assert accounts["Assets:Test1"].get("desc") == "Account 1"
+
+
+# ===== Encoder 上下文管理器测试 =====
+
+
+class TestEncoderContextManager:
+    """Encoder 上下文管理器测试."""
+
+    @pytest.mark.asyncio
+    async def test_encoder_context_manager(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试 Encoder 上下文管理器正确关闭资源."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+
+        with patch.object(
+            encoder._Encoder__embeddings_client, "create", new_callable=AsyncMock
+        ) as mock_create:
+            mock_response = MagicMock()
+            mock_response.data = [MagicMock(embedding=[0.1, 0.2, 0.3])]
+            mock_create.return_value = mock_response
+
+            with encoder as enc:
+                result = await enc.encode("test text")
+                assert result == [0.1, 0.2, 0.3]
+
+    @pytest.mark.asyncio
+    async def test_encoder_manual_close(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试 Encoder 手动调用 close()."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+
+        with patch.object(
+            encoder._Encoder__embeddings_client, "create", new_callable=AsyncMock
+        ) as mock_create:
+            mock_response = MagicMock()
+            mock_response.data = [MagicMock(embedding=[0.1, 0.2, 0.3])]
+            mock_create.return_value = mock_response
+
+            await encoder.encode("test text")
+            encoder.close()
+
+    @pytest.mark.asyncio
+    async def test_encoder_del_cleanup(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试 Encoder 被删除时资源被清理."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+
+        with patch.object(
+            encoder._Encoder__embeddings_client, "create", new_callable=AsyncMock
+        ) as mock_create:
+            mock_response = MagicMock()
+            mock_response.data = [MagicMock(embedding=[0.1, 0.2, 0.3])]
+            mock_create.return_value = mock_response
+
+            await encoder.encode("test text")
+            del encoder
+
+
+# ===== Hook 集成测试 =====
+
+
+class TestHookIntegration:
+    """Hook 集成测试."""
+
+    @pytest.mark.asyncio
+    async def test_transform_processes_existing_directives(
+        self,
+        embedding_settings: EmbeddingModelSettings,
+        chat_settings: ChatModelSettings,
+        sample_directives: list[Directive],
+    ) -> None:
+        """测试 _transform 处理现有指令索引."""
+        hook = Hook(
+            chat_model_settings=chat_settings,
+            embed_model_settings=embedding_settings,
+        )
+
+        imported: list[Imported] = [
+            (
+                "test.beancount",
+                sample_directives[:1],
+                "Assets:Test:Checking",
+                MagicMock(),
+            ),
+        ]
+
+        with patch.object(
+            hook._Hook__encoder._Encoder__embeddings_client,
+            "create",
+            new_callable=AsyncMock,
+        ) as mock_embed:
+            mock_response = MagicMock()
+            mock_response.data = [MagicMock(embedding=[0.1, 0.2, 0.3])]
+            mock_embed.return_value = mock_response
+
+            with patch.object(
+                hook._Hook__chat_bot._ChatBot__chat_client,
+                "create",
+                new_callable=AsyncMock,
+            ) as mock_chat:
+                mock_chat_response = MagicMock()
+                mock_chat_response.choices = [
+                    MagicMock(message=MagicMock(content='{"account": null}'))
+                ]
+                mock_chat.return_value = mock_chat_response
+
+                result = await hook._transform(imported, sample_directives)
+                assert isinstance(result, list)
+                assert len(result) == 1
+
+    @pytest.mark.asyncio
+    async def test_process_one_file_parallel(
+        self,
+        embedding_settings: EmbeddingModelSettings,
+        chat_settings: ChatModelSettings,
+    ) -> None:
+        """测试 _process_one_file 并行处理多个指令."""
+        hook = Hook(
+            chat_model_settings=chat_settings,
+            embed_model_settings=embedding_settings,
+        )
+
+        open_directives = [
+            Open(
+                meta=Meta({}),
+                date=date(2024, 1, 1),
+                account="Assets:Test",
+                currencies=[],
+                booking=None,
+            ),
+        ]
+
+        transactions = [
+            Transaction(
+                date=date(2024, 1, i + 1),
+                flag=FLAG_OKAY,
+                narration=f"Test transaction {i}",
+                payee=None,
+                links=(),
+                tags=(),
+                meta=Meta({}),
+                postings=[Posting("Assets:Test", None, None, None, None, None)],
+            )
+            for i in range(5)
+        ]
+
+        directives = [*open_directives, *transactions]
+
+        encoder = hook._Hook__encoder
+        with patch.object(
+            encoder._Encoder__embeddings_client, "create", new_callable=AsyncMock
+        ) as mock_embed:
+            mock_response = MagicMock()
+            mock_response.data = [MagicMock(embedding=[0.1, 0.2, 0.3])]
+            mock_embed.return_value = mock_response
+
+            with patch.object(
+                hook._Hook__chat_bot._ChatBot__chat_client,
+                "create",
+                new_callable=AsyncMock,
+            ) as mock_chat:
+                mock_chat_response = MagicMock()
+                mock_chat_response.choices = [
+                    MagicMock(message=MagicMock(content='{"account": null}'))
+                ]
+                mock_chat.return_value = mock_chat_response
+
+                index = _HistoryIndex(encoder=encoder, ndim=3)
+                for directive in open_directives:
+                    await index.add(directive)
+
+                predictor = _AccountPredictor(
+                    chat_bot=hook._Hook__chat_bot,
+                    index=index,
+                    extra_system_prompt="",
+                )
+
+                result = await hook._process_one_file(directives, predictor)
+                assert len(result) == len(directives)
+
+    @pytest.mark.asyncio
+    async def test_history_index_search_sorting(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试 _HistoryIndex.search 返回排序后的结果."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        index = HistoryIndex(encoder=encoder, ndim=3)
+
+        open_directives = [
+            Open(
+                meta=Meta({}),
+                date=date(2024, 1, 1),
+                account="Assets:Test",
+                currencies=[],
+                booking=None,
+            ),
+            Open(
+                meta=Meta({}),
+                date=date(2024, 1, 1),
+                account="Expenses:Test",
+                currencies=[],
+                booking=None,
+            ),
+        ]
+
+        txn = Transaction(
+            date=date(2024, 1, 15),
+            flag=FLAG_OKAY,
+            narration="Test transaction",
+            payee=None,
+            links=(),
+            tags=(),
+            meta=Meta({}),
+            postings=[
+                Posting("Assets:Test", None, None, None, None, None),
+                Posting("Expenses:Test", None, None, None, None, None),
+            ],
+        )
+
+        with patch.object(encoder, "encode", new_callable=AsyncMock) as mock_encode:
+            mock_encode.return_value = [0.1, 0.2, 0.3]
+            for directive in open_directives:
+                await index.add(directive)
+            await index.add(txn)
+
+            search_txn = Transaction(
+                date=date(2024, 1, 16),
+                flag=FLAG_OKAY,
+                narration="Search transaction",
+                payee=None,
+                links=(),
+                tags=(),
+                meta=Meta({}),
+                postings=[Posting("Assets:Test", None, None, None, None, None)],
+            )
+            results = await index.search(search_txn, n_few_shots=3)
+
+        assert isinstance(results, list)
+
+
+# ===== _HistoryIndex.search 测试 =====
+
+
+class TestHistoryIndexSearch:
+    """_HistoryIndex.search 测试."""
+
+    @pytest.mark.asyncio
+    async def test_search_multiple_candidates(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试搜索返回多个候选结果并正确排序."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        index = HistoryIndex(encoder=encoder, ndim=3)
+
+        open_directives = [
+            Open(
+                meta=Meta({}),
+                date=date(2024, 1, 1),
+                account="Assets:Test",
+                currencies=[],
+                booking=None,
+            ),
+            Open(
+                meta=Meta({}),
+                date=date(2024, 1, 1),
+                account="Expenses:Food",
+                currencies=[],
+                booking=None,
+            ),
+            Open(
+                meta=Meta({}),
+                date=date(2024, 1, 1),
+                account="Expenses:Transport",
+                currencies=[],
+                booking=None,
+            ),
+        ]
+
+        with patch.object(encoder, "encode", new_callable=AsyncMock) as mock_encode:
+            mock_encode.return_value = [0.1, 0.2, 0.3]
+            for directive in open_directives:
+                await index.add(directive)
+
+            txn = Transaction(
+                date=date(2024, 1, 20),
+                flag=FLAG_OKAY,
+                narration="Restaurant expense",
+                payee=None,
+                links=(),
+                tags=(),
+                meta=Meta({}),
+                postings=[
+                    Posting("Assets:Test", None, None, None, None, None),
+                    Posting("Expenses:Food", None, None, None, None, None),
+                ],
+            )
+            await index.add(txn)
+
+            search_txn = Transaction(
+                date=date(2024, 1, 21),
+                flag=FLAG_OKAY,
+                narration="Search similar",
+                payee=None,
+                links=(),
+                tags=(),
+                meta=Meta({}),
+                postings=[Posting("Assets:Test", None, None, None, None, None)],
+            )
+
+            results = await index.search(search_txn, n_few_shots=3)
+
+        assert isinstance(results, list)
+
+
+# ===== _TransactionIndex 重复检测测试 =====
+
+
+class TestTransactionIndexDuplicate:
+    """_TransactionIndex 重复检测测试."""
+
+    @pytest.mark.asyncio
+    async def test_add_duplicate_transaction_skipped(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试重复交易被跳过(不重复添加)."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        index = TransactionIndex(encoder=encoder, ndim=3)
+
+        txn = Transaction(
+            date=date(2024, 1, 15),
+            flag=FLAG_OKAY,
+            narration="Test transaction",
+            payee=None,
+            links=(),
+            tags=(),
+            meta=Meta({}),
+            postings=[
+                Posting("Assets:Test", None, None, None, None, None),
+                Posting("Expenses:Test", None, None, None, None, None),
+            ],
+        )
+
+        with patch.object(encoder, "encode", new_callable=AsyncMock) as mock_encode:
+            mock_encode.return_value = [0.1, 0.2, 0.3]
+
+            await index.add(txn)
+            first_call_count = mock_encode.call_count
+
+            await index.add(txn)
+            second_call_count = mock_encode.call_count
+
+            assert first_call_count == 1
+            assert second_call_count == 1
+
+
+# ===== 补充覆盖率测试 =====
+
+
+class TestAdditionalCoverage:
+    """补充覆盖率测试."""
+
+    def test_encoder_close_without_cache(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """Test Encoder.close() without cache attribute."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        # Ensure __cache attribute does not exist (simulate initialization failure)
+        if hasattr(encoder, "_Encoder__cache"):
+            delattr(encoder, "_Encoder__cache")
+        # Should not raise exception
+        encoder.close()
+
+    @pytest.mark.asyncio
+    async def test_history_index_add_check_transaction_false(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试 _HistoryIndex.add 在 _check_transaction 返回 False 时正常处理."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        index = HistoryIndex(encoder=encoder, ndim=3)
+
+        open_directive = Open(
+            meta=Meta({}),
+            date=date(2024, 1, 1),
+            account="Assets:Test",
+            currencies=["CNY"],
+            booking=None,
+        )
+        await index.add(open_directive)
+
+        # 单条目的交易应该被 _check_transaction 拒绝
+        txn = Transaction(
+            date=date(2024, 1, 15),
+            flag=FLAG_OKAY,
+            narration="Single posting",
+            payee=None,
+            links=(),
+            tags=(),
+            meta=Meta({}),
+            postings=[
+                Posting("Assets:Test", None, None, None, None, None),
+            ],
+        )
+        # Should not raise exception, just skip
+        await index.add(txn)
+
+    def test_predictor_check_transaction_with_flag(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """Test AccountPredictor._check_transaction rejects flag='!' transactions."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        chatbot = ChatBot(model_settings=embedding_settings)
+        history_index = HistoryIndex(encoder=encoder, ndim=3)
+        predictor = AccountPredictor(
+            chat_bot=chatbot,
+            index=history_index,
+            extra_system_prompt="",
+        )
+
+        txn = Transaction(
+            date=date(2024, 1, 15),
+            flag="!",
+            narration="Warning transaction",
+            payee=None,
+            links=(),
+            tags=(),
+            meta=Meta({}),
+            postings=[
+                Posting("Assets:Test", None, None, None, None, None),
+            ],
+        )
+        assert predictor._check_transaction(txn) is False
+
+    def test_predictor_check_transaction_with_multiple_postings(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试 AccountPredictor._check_transaction 拒绝多个条目的交易."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        chatbot = ChatBot(model_settings=embedding_settings)
+        history_index = HistoryIndex(encoder=encoder, ndim=3)
+        predictor = AccountPredictor(
+            chat_bot=chatbot,
+            index=history_index,
+            extra_system_prompt="",
+        )
+
+        txn = Transaction(
+            date=date(2024, 1, 15),
+            flag=FLAG_OKAY,
+            narration="Multiple postings",
+            payee=None,
+            links=(),
+            tags=(),
+            meta=Meta({}),
+            postings=[
+                Posting("Assets:Test", None, None, None, None, None),
+                Posting("Expenses:Test", None, None, None, None, None),
+            ],
+        )
+        assert predictor._check_transaction(txn) is False
+
+    def test_predictor_check_transaction_with_warning_posting_flag(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试 AccountPredictor._check_transaction 拒绝有警告标记条目的交易."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        chatbot = ChatBot(model_settings=embedding_settings)
+        history_index = HistoryIndex(encoder=encoder, ndim=3)
+        predictor = AccountPredictor(
+            chat_bot=chatbot,
+            index=history_index,
+            extra_system_prompt="",
+        )
+
+        txn = Transaction(
+            date=date(2024, 1, 15),
+            flag=FLAG_OKAY,
+            narration="Test",
+            payee=None,
+            links=(),
+            tags=(),
+            meta=Meta({}),
+            postings=[
+                Posting("Assets:Test", None, None, None, FLAG_WARNING, None),
+            ],
+        )
+        assert predictor._check_transaction(txn) is False

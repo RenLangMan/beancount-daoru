@@ -14,9 +14,9 @@ echo "🔍 检查本地工具..."
 TOOLS=("ruff" "basedpyright" "markdownlint-cli2" "shellcheck" "shfmt" "pre-commit")
 
 for tool in "${TOOLS[@]}"; do
-  if command -v "$tool" &>/dev/null; then
+  if command -v "$tool" &> /dev/null; then
     echo "  ✅ $tool: $(which "$tool")"
-  elif command -v "uv run $tool" &>/dev/null; then
+  elif command -v "uv run $tool" &> /dev/null; then
     echo "  ✅ $tool: uv run"
   else
     echo "  ❌ $tool: 未安装"

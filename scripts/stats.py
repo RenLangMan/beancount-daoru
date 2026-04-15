@@ -984,7 +984,7 @@ def cmd_check(args: argparse.Namespace) -> None:
 
     print_title(f"Beancount 语法检查: {target.name}")
 
-    result = subprocess.run(  # noqa: S603
+    result = subprocess.run(
         [bean_check_cmd, str(target)],
         capture_output=True,
         text=True,
@@ -1026,7 +1026,7 @@ def cmd_report(args: argparse.Namespace) -> None:
     report_type: str = cast("str", args.report_type) or "balances"
     print_title(f"Beancount 报表: {report_type}")
 
-    result = subprocess.run(  # noqa: S603
+    result = subprocess.run(
         [bean_report_cmd, str(target), report_type],
         capture_output=True,
         text=True,

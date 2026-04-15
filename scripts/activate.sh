@@ -52,7 +52,7 @@ fi
 echo "✅ 虚拟环境已激活"
 echo "🐍 Python: $(python --version 2>&1)"
 echo "📁 Python 路径: $(which python)"
-if command -v uv &>/dev/null; then
+if command -v uv &> /dev/null; then
   echo "🔧 UV 版本: $(uv --version 2>&1)"
 fi
 

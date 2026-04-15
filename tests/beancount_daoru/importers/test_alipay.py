@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 
 from beancount_daoru.importer import Extra, Metadata, ParserError, Posting, Transaction
-from beancount_daoru.importers.alipay import Parser
+from beancount_daoru.importers.alipay import Importer, Parser
 
 
 @pytest.fixture(scope="module")
@@ -514,3 +514,11 @@ def test_parse_error(parser: Parser, record: dict[str, str]) -> None:
     """测试无法识别的交易类型抛出 ParserError."""
     with pytest.raises(ParserError):
         _ = parser.parse(record)
+
+
+def test_importer_init() -> None:
+    """测试 Importer 初始化."""
+    importer = Importer(account_mapping={}, currency_mapping={})
+    assert importer._Importer__filename_pattern is not None
+    assert importer._Importer__reader is not None
+    assert importer._Importer__parser is not None

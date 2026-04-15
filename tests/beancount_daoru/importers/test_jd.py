@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 
 from beancount_daoru.importer import Extra, Metadata, ParserError, Posting, Transaction
-from beancount_daoru.importers.jd import Parser
+from beancount_daoru.importers.jd import Importer, Parser
 
 
 @pytest.fixture(scope="module")
@@ -249,3 +249,11 @@ class TestParseError:
         }
         with pytest.raises(ParserError):
             _ = parser.parse(record)
+
+
+def test_importer_init() -> None:
+    """测试 Importer 初始化."""
+    importer = Importer(account_mapping={}, currency_mapping={})
+    assert importer._Importer__filename_pattern is not None
+    assert importer._Importer__reader is not None
+    assert importer._Importer__parser is not None

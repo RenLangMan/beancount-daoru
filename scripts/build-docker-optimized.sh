@@ -52,23 +52,23 @@ docker build --progress=plain \
 BUILD_STATUS=$?
 
 # 提取错误和警告
-grep -E "(ERROR|WARNING|FAILED|Step.*failed)" "$LOG_FILE" > "$ERROR_LOG" 2>/dev/null
+grep -E "(ERROR|WARNING|FAILED|Step.*failed)" "$LOG_FILE" > "$ERROR_LOG" 2> /dev/null
 
 # 显示结果
 echo "=================================="
 if [ $BUILD_STATUS -eq 0 ]; then
-    echo "✅ 构建成功！"
-    
-    # 如果是 CI 环境，自动推送
-    if [ "${CI}" = "true" ]; then
-        echo "📤 推送镜像到 ${IMAGE_REGISTRY}..."
-        docker push ${FULL_IMAGE}:${IMAGE_TAG}
-        docker push ${FULL_IMAGE}:latest
-        echo "✅ 推送完成"
-    fi
+  echo "✅ 构建成功！"
+
+  # 如果是 CI 环境，自动推送
+  if [ "${CI}" = "true" ]; then
+    echo "📤 推送镜像到 ${IMAGE_REGISTRY}..."
+    docker push ${FULL_IMAGE}:${IMAGE_TAG}
+    docker push ${FULL_IMAGE}:latest
+    echo "✅ 推送完成"
+  fi
 else
-    echo "❌ 构建失败！退出码: ${BUILD_STATUS}"
-    echo "失败信息: ${CNB_BUILD_FAILED_MSG:-无详细信息}"
+  echo "❌ 构建失败！退出码: ${BUILD_STATUS}"
+  echo "失败信息: ${CNB_BUILD_FAILED_MSG:-无详细信息}"
 fi
 echo "完整日志: $LOG_FILE"
 echo "错误摘要: $ERROR_LOG"
@@ -76,17 +76,17 @@ echo "=================================="
 
 # 显示错误数量
 if [ -f "$ERROR_LOG" ]; then
-    ERROR_COUNT=$(wc -l < "$ERROR_LOG")
-    if [ "$ERROR_COUNT" -gt 0 ]; then
-        echo "⚠️  发现 $ERROR_COUNT 条错误/警告"
-        echo "--- 错误摘要 ---"
-        cat "$ERROR_LOG"
-        echo "--- 结束 ---"
-    else
-        echo "✅ 没有发现错误"
-    fi
-else
+  ERROR_COUNT=$(wc -l < "$ERROR_LOG")
+  if [ "$ERROR_COUNT" -gt 0 ]; then
+    echo "⚠️  发现 $ERROR_COUNT 条错误/警告"
+    echo "--- 错误摘要 ---"
+    cat "$ERROR_LOG"
+    echo "--- 结束 ---"
+  else
     echo "✅ 没有发现错误"
+  fi
+else
+  echo "✅ 没有发现错误"
 fi
 
 exit $BUILD_STATUS

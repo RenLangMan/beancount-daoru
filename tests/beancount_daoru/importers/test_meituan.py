@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 
 from beancount_daoru.importer import Extra, Metadata, ParserError, Posting, Transaction
-from beancount_daoru.importers.meituan import Parser
+from beancount_daoru.importers.meituan import Importer, Parser, _validate_str
 
 
 @pytest.fixture(scope="module")
@@ -273,3 +273,35 @@ class TestParseError:
         }
         with pytest.raises(ParserError):
             _ = parser.parse(record)
+
+
+def test_importer_init() -> None:
+    """测试 Importer 初始化."""
+    importer = Importer(account_mapping={}, currency_mapping={})
+    assert importer._Importer__filename_pattern is not None
+    assert importer._Importer__reader is not None
+    assert importer._Importer__parser is not None
+
+
+def test_validate_str_with_none() -> None:
+    """Test _validate_str handles None value."""
+    result = _validate_str(None)
+    assert result is None
+
+
+def test_validate_str_with_empty() -> None:
+    """Test _validate_str handles empty string."""
+    result = _validate_str("")
+    assert result is None
+
+
+def test_validate_str_with_slash() -> None:
+    """Test _validate_str handles slash."""
+    result = _validate_str("/")
+    assert result is None
+
+
+def test_validate_str_with_normal_value() -> None:
+    """Test _validate_str handles normal value."""
+    result = _validate_str("正常内容")
+    assert result == "正常内容"
