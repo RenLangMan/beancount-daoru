@@ -100,6 +100,6 @@ spaces_indent_inline_array = 2
 # 文档: https://mdformat.readthedocs.io/
 [tool.mdformat]
 wrap = "keep"               # 保持现有换行
-number = false              # 不添加行号
+number = true              # 有序列表重新编号为 1,2,3...
 
 # See https://packaging.python.org for more information on Python project metadata
