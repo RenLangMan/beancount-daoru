@@ -8,9 +8,13 @@ import asyncio
 import json
 import re
 from collections.abc import Mapping
+from contextlib import suppress
 from hashlib import blake2b
 from pathlib import Path
-from typing import TypedDict
+from typing import TYPE_CHECKING, TypedDict
+
+if TYPE_CHECKING:
+    from typing_extensions import Self
 
 import numpy as np
 from beancount import (
@@ -62,6 +66,21 @@ class _Encoder:
     参数:
         model_settings: 嵌入模型配置
         cache_dir: 缓存目录路径
+
+    使用方式:
+        推荐使用上下文管理器以确保资源正确释放:
+        ```python
+        async with Encoder(...) as encoder:
+            embedding = await encoder.encode("text")
+        ```
+        或手动调用 close():
+        ```python
+        encoder = Encoder(...)
+        try:
+            embedding = await encoder.encode("text")
+        finally:
+            encoder.close()
+        ```
     """
 
     def __init__(
@@ -87,6 +106,29 @@ class _Encoder:
         cache_path = cache_dir / f"{_cache_prefix}.embeddings.diskcache"
         self.__cache = Cache(cache_path)
         self.__validator = TypeAdapter(list[float])
+
+    def close(self) -> None:
+        """关闭编码器,释放底层资源."""
+        if hasattr(self, "_Encoder__cache"):
+            self.__cache.close()  # pyright: ignore[reportAttributeAccessIssue]
+
+    def __enter__(self) -> "Self":
+        """支持上下文管理器入口."""
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object | None,  # noqa: PYI036
+    ) -> None:
+        """退出上下文管理器时自动关闭资源."""
+        self.close()
+
+    def __del__(self) -> None:
+        """析构时确保资源被释放."""
+        with suppress(Exception):
+            self.close()
 
     async def encode(self, text: str) -> list[float]:
         """将文本编码为向量嵌入.
