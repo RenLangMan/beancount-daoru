@@ -237,7 +237,7 @@ run_shfmt() {
   fi
 
   if [ -n "$SHFMT_CMD" ]; then
-    $SHFMT_CMD -d -sr scripts/*.sh
+    $SHFMT_CMD -i 2 -ci -d -sr scripts/*.sh
     print_success "Shell 脚本格式正确"
   else
     print_warn "shfmt 未安装，跳过格式化检查"
@@ -294,7 +294,7 @@ fix_code() {
 
   print_step "格式化 Markdown 文件..."
   if command -v mdformat &> /dev/null; then
-    uv run mdformat docs/**/*.md scripts/**/*.md README.md CONTRIBUTING.md NOTICE.md QUICKSTART.md
+    uv run mdformat docs/ scripts/ README.md CONTRIBUTING.md NOTICE.md QUICKSTART.md
     print_success "Markdown 格式化完成"
   else
     print_warn "mdformat 未安装，跳过 Markdown 格式化"
@@ -312,7 +312,7 @@ fix_code() {
   fi
 
   if [ -n "$SHFMT_CMD" ]; then
-    $SHFMT_CMD -w -sr scripts/*.sh
+    $SHFMT_CMD -i 2 -ci -w -sr scripts/*.sh
     print_success "Shell 脚本格式化完成"
   else
     print_warn "shfmt 未安装，跳过 Shell 脚本格式化"
@@ -729,7 +729,7 @@ run_ci_pipeline() {
   # shfmt
   print_step "shfmt..."
   if command -v shfmt &> /dev/null; then
-    if ! shfmt -d -sr scripts/*.sh; then
+    if ! shfmt -i 2 -ci -d -sr scripts/*.sh; then
       print_error "shfmt 格式检查失败"
       has_error=1
     fi

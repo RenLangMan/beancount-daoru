@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd /workspace
+cd /workspace || exit
 
 # 使用 CNB 标准环境变量
 IMAGE_REGISTRY="${CNB_DOCKER_REGISTRY:-docker.cnb.cool}"

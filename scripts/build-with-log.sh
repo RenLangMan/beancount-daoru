@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd /workspace
+cd /workspace || exit
 
 # 设置日志目录
 LOG_DIR="build-logs"
