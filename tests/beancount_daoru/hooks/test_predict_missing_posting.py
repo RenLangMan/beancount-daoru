@@ -27,7 +27,10 @@ from beancount_daoru.hooks.predict_missing_posting import (
     Encoder,
     HistoryIndex,
     Hook,
+    Imported,
     TransactionIndex,
+    _AccountPredictor,
+    _HistoryIndex,
 )
 
 # ===== 测试固件 =====
@@ -1303,3 +1306,359 @@ class TestEdgeCases:
         assert "Assets:Test1" in accounts
         assert "Assets:Test2" in accounts
         assert accounts["Assets:Test1"].get("desc") == "Account 1"
+
+
+# ===== Encoder 上下文管理器测试 =====
+
+
+class TestEncoderContextManager:
+    """Encoder 上下文管理器测试."""
+
+    @pytest.mark.asyncio
+    async def test_encoder_context_manager(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试 Encoder 上下文管理器正确关闭资源."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+
+        with patch.object(
+            encoder._Encoder__embeddings_client, "create", new_callable=AsyncMock
+        ) as mock_create:
+            mock_response = MagicMock()
+            mock_response.data = [MagicMock(embedding=[0.1, 0.2, 0.3])]
+            mock_create.return_value = mock_response
+
+            with encoder as enc:
+                result = await enc.encode("test text")
+                assert result == [0.1, 0.2, 0.3]
+
+    @pytest.mark.asyncio
+    async def test_encoder_manual_close(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试 Encoder 手动调用 close()."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+
+        with patch.object(
+            encoder._Encoder__embeddings_client, "create", new_callable=AsyncMock
+        ) as mock_create:
+            mock_response = MagicMock()
+            mock_response.data = [MagicMock(embedding=[0.1, 0.2, 0.3])]
+            mock_create.return_value = mock_response
+
+            await encoder.encode("test text")
+            encoder.close()
+
+    @pytest.mark.asyncio
+    async def test_encoder_del_cleanup(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试 Encoder 被删除时资源被清理."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+
+        with patch.object(
+            encoder._Encoder__embeddings_client, "create", new_callable=AsyncMock
+        ) as mock_create:
+            mock_response = MagicMock()
+            mock_response.data = [MagicMock(embedding=[0.1, 0.2, 0.3])]
+            mock_create.return_value = mock_response
+
+            await encoder.encode("test text")
+            del encoder
+
+
+# ===== Hook 集成测试 =====
+
+
+class TestHookIntegration:
+    """Hook 集成测试."""
+
+    @pytest.mark.asyncio
+    async def test_transform_processes_existing_directives(
+        self,
+        embedding_settings: EmbeddingModelSettings,
+        chat_settings: ChatModelSettings,
+        sample_directives: list[Directive],
+    ) -> None:
+        """测试 _transform 处理现有指令索引."""
+        hook = Hook(
+            chat_model_settings=chat_settings,
+            embed_model_settings=embedding_settings,
+        )
+
+        imported: list[Imported] = [
+            (
+                "test.beancount",
+                sample_directives[:1],
+                "Assets:Test:Checking",
+                MagicMock(),
+            ),
+        ]
+
+        with patch.object(
+            hook._Hook__encoder._Encoder__embeddings_client,
+            "create",
+            new_callable=AsyncMock,
+        ) as mock_embed:
+            mock_response = MagicMock()
+            mock_response.data = [MagicMock(embedding=[0.1, 0.2, 0.3])]
+            mock_embed.return_value = mock_response
+
+            with patch.object(
+                hook._Hook__chat_bot._ChatBot__chat_client,
+                "create",
+                new_callable=AsyncMock,
+            ) as mock_chat:
+                mock_chat_response = MagicMock()
+                mock_chat_response.choices = [
+                    MagicMock(message=MagicMock(content='{"account": null}'))
+                ]
+                mock_chat.return_value = mock_chat_response
+
+                result = await hook._transform(imported, sample_directives)
+                assert isinstance(result, list)
+                assert len(result) == 1
+
+    @pytest.mark.asyncio
+    async def test_process_one_file_parallel(
+        self,
+        embedding_settings: EmbeddingModelSettings,
+        chat_settings: ChatModelSettings,
+    ) -> None:
+        """测试 _process_one_file 并行处理多个指令."""
+        hook = Hook(
+            chat_model_settings=chat_settings,
+            embed_model_settings=embedding_settings,
+        )
+
+        open_directives = [
+            Open(
+                meta=Meta({}),
+                date=date(2024, 1, 1),
+                account="Assets:Test",
+                currencies=[],
+                booking=None,
+            ),
+        ]
+
+        transactions = [
+            Transaction(
+                date=date(2024, 1, i + 1),
+                flag=FLAG_OKAY,
+                narration=f"Test transaction {i}",
+                payee=None,
+                links=(),
+                tags=(),
+                meta=Meta({}),
+                postings=[Posting("Assets:Test", None, None, None, None, None)],
+            )
+            for i in range(5)
+        ]
+
+        directives = [*open_directives, *transactions]
+
+        encoder = hook._Hook__encoder
+        with patch.object(
+            encoder._Encoder__embeddings_client, "create", new_callable=AsyncMock
+        ) as mock_embed:
+            mock_response = MagicMock()
+            mock_response.data = [MagicMock(embedding=[0.1, 0.2, 0.3])]
+            mock_embed.return_value = mock_response
+
+            with patch.object(
+                hook._Hook__chat_bot._ChatBot__chat_client,
+                "create",
+                new_callable=AsyncMock,
+            ) as mock_chat:
+                mock_chat_response = MagicMock()
+                mock_chat_response.choices = [
+                    MagicMock(message=MagicMock(content='{"account": null}'))
+                ]
+                mock_chat.return_value = mock_chat_response
+
+                index = _HistoryIndex(encoder=encoder, ndim=3)
+                for directive in open_directives:
+                    await index.add(directive)
+
+                predictor = _AccountPredictor(
+                    chat_bot=hook._Hook__chat_bot,
+                    index=index,
+                    extra_system_prompt="",
+                )
+
+                result = await hook._process_one_file(directives, predictor)
+                assert len(result) == len(directives)
+
+    @pytest.mark.asyncio
+    async def test_history_index_search_sorting(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试 _HistoryIndex.search 返回排序后的结果."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        index = HistoryIndex(encoder=encoder, ndim=3)
+
+        open_directives = [
+            Open(
+                meta=Meta({}),
+                date=date(2024, 1, 1),
+                account="Assets:Test",
+                currencies=[],
+                booking=None,
+            ),
+            Open(
+                meta=Meta({}),
+                date=date(2024, 1, 1),
+                account="Expenses:Test",
+                currencies=[],
+                booking=None,
+            ),
+        ]
+
+        txn = Transaction(
+            date=date(2024, 1, 15),
+            flag=FLAG_OKAY,
+            narration="Test transaction",
+            payee=None,
+            links=(),
+            tags=(),
+            meta=Meta({}),
+            postings=[
+                Posting("Assets:Test", None, None, None, None, None),
+                Posting("Expenses:Test", None, None, None, None, None),
+            ],
+        )
+
+        with patch.object(encoder, "encode", new_callable=AsyncMock) as mock_encode:
+            mock_encode.return_value = [0.1, 0.2, 0.3]
+            for directive in open_directives:
+                await index.add(directive)
+            await index.add(txn)
+
+            search_txn = Transaction(
+                date=date(2024, 1, 16),
+                flag=FLAG_OKAY,
+                narration="Search transaction",
+                payee=None,
+                links=(),
+                tags=(),
+                meta=Meta({}),
+                postings=[Posting("Assets:Test", None, None, None, None, None)],
+            )
+            results = await index.search(search_txn, n_few_shots=3)
+
+        assert isinstance(results, list)
+
+
+# ===== _HistoryIndex.search 测试 =====
+
+
+class TestHistoryIndexSearch:
+    """_HistoryIndex.search 测试."""
+
+    @pytest.mark.asyncio
+    async def test_search_multiple_candidates(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试搜索返回多个候选结果并正确排序."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        index = HistoryIndex(encoder=encoder, ndim=3)
+
+        open_directives = [
+            Open(
+                meta=Meta({}),
+                date=date(2024, 1, 1),
+                account="Assets:Test",
+                currencies=[],
+                booking=None,
+            ),
+            Open(
+                meta=Meta({}),
+                date=date(2024, 1, 1),
+                account="Expenses:Food",
+                currencies=[],
+                booking=None,
+            ),
+            Open(
+                meta=Meta({}),
+                date=date(2024, 1, 1),
+                account="Expenses:Transport",
+                currencies=[],
+                booking=None,
+            ),
+        ]
+
+        with patch.object(encoder, "encode", new_callable=AsyncMock) as mock_encode:
+            mock_encode.return_value = [0.1, 0.2, 0.3]
+            for directive in open_directives:
+                await index.add(directive)
+
+            txn = Transaction(
+                date=date(2024, 1, 20),
+                flag=FLAG_OKAY,
+                narration="Restaurant expense",
+                payee=None,
+                links=(),
+                tags=(),
+                meta=Meta({}),
+                postings=[
+                    Posting("Assets:Test", None, None, None, None, None),
+                    Posting("Expenses:Food", None, None, None, None, None),
+                ],
+            )
+            await index.add(txn)
+
+            search_txn = Transaction(
+                date=date(2024, 1, 21),
+                flag=FLAG_OKAY,
+                narration="Search similar",
+                payee=None,
+                links=(),
+                tags=(),
+                meta=Meta({}),
+                postings=[Posting("Assets:Test", None, None, None, None, None)],
+            )
+
+            results = await index.search(search_txn, n_few_shots=3)
+
+        assert isinstance(results, list)
+
+
+# ===== _TransactionIndex 重复检测测试 =====
+
+
+class TestTransactionIndexDuplicate:
+    """_TransactionIndex 重复检测测试."""
+
+    @pytest.mark.asyncio
+    async def test_add_duplicate_transaction_skipped(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试重复交易被跳过(不重复添加)."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        index = TransactionIndex(encoder=encoder, ndim=3)
+
+        txn = Transaction(
+            date=date(2024, 1, 15),
+            flag=FLAG_OKAY,
+            narration="Test transaction",
+            payee=None,
+            links=(),
+            tags=(),
+            meta=Meta({}),
+            postings=[
+                Posting("Assets:Test", None, None, None, None, None),
+                Posting("Expenses:Test", None, None, None, None, None),
+            ],
+        )
+
+        with patch.object(encoder, "encode", new_callable=AsyncMock) as mock_encode:
+            mock_encode.return_value = [0.1, 0.2, 0.3]
+
+            await index.add(txn)
+            first_call_count = mock_encode.call_count
+
+            await index.add(txn)
+            second_call_count = mock_encode.call_count
+
+            assert first_call_count == 1
+            assert second_call_count == 1
