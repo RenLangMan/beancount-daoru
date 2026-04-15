@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 from beancount_daoru.hooks.reorder_by_importer_name import Hook
 
 if TYPE_CHECKING:
-    from beancount import Directives
+    from beancount_daoru.hook import Imported
 
 
 class TestHook:
@@ -27,7 +27,7 @@ class TestHook:
         importer_m = MagicMock()
         importer_m.name = "MImporter"
 
-        imported: Directives = [
+        imported: list[Imported] = [
             ("/path/z.bean", [], "Assets:Z", importer_z),
             ("/path/a.bean", [], "Assets:A", importer_a),
             ("/path/m.bean", [], "Assets:M", importer_m),
@@ -49,8 +49,8 @@ class TestHook:
         importer = MagicMock()
         importer.name = "TestImporter"
 
-        directives = MagicMock()
-        imported: Directives = [
+        directives: list = []
+        imported: list[Imported] = [
             ("/path/file.bean", directives, "Assets:Test", importer),
         ]
 

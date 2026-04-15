@@ -133,9 +133,11 @@ class TestExcelReaderIntegration:
     def test_read_records_with_special_chars(self, tmp_path: Path) -> None:
         """测试读取包含特殊字符的记录."""
         csv_file = tmp_path / "special.csv"
-        csv_file.write_text('name,desc\n测试,"with,comma"\n"line\nbreak",normal')
+        csv_file.write_text(
+            'name,desc\n测试,"with,comma"\n"line\nbreak",normal', encoding="utf-8"
+        )
 
-        reader = Reader(header=1)
+        reader = Reader(header=1, encoding="utf-8")
         records = list(reader.read_records(csv_file))
 
         assert len(records) >= 1

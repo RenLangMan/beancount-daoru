@@ -2,13 +2,30 @@
 
 from __future__ import annotations
 
+import datetime
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
+
+from beancount.core.data import Transaction
 
 from beancount_daoru.hooks.path_to_name import Hook
 
 if TYPE_CHECKING:
-    from beancount import Directives
+    from beancount_daoru.hook import Imported
+
+
+def create_transaction(payee: str = "Test Payee") -> Transaction:
+    """创建真实的 Transaction 对象."""
+    return Transaction(
+        meta=MagicMock(),
+        date=datetime.date(2024, 1, 1),
+        flag="*",
+        payee=payee,
+        narration="Test Narration",
+        tags=frozenset(),
+        links=frozenset(),
+        postings=[],
+    )
 
 
 class TestHook:
@@ -19,10 +36,11 @@ class TestHook:
         hook = Hook()
         importer = MagicMock()
         importer.name = "TestImporter"
+        directives = [create_transaction("Payee 1")]
 
-        imported: Directives = [
-            ("/path/to/transactions.beancount", [], "Assets:Test", importer),
-            ("/another/path/data.bean", [], "Assets:Another", importer),
+        imported: list[Imported] = [
+            ("/path/to/transactions.beancount", directives, "Assets:Test", importer),
+            ("/another/path/data.bean", directives, "Assets:Another", importer),
         ]
 
         result = hook(imported, [])
@@ -35,9 +53,10 @@ class TestHook:
         hook = Hook()
         importer = MagicMock()
         importer.name = "TestImporter"
+        directives = [create_transaction()]
 
-        imported: Directives = [
-            ("relative/path/to/file.csv", [], "Assets:Test", importer),
+        imported: list[Imported] = [
+            ("relative/path/to/file.csv", directives, "Assets:Test", importer),
         ]
 
         result = hook(imported, [])
@@ -49,9 +68,10 @@ class TestHook:
         hook = Hook()
         importer = MagicMock()
         importer.name = "TestImporter"
+        directives = [create_transaction()]
 
-        imported: Directives = [
-            ("file.csv", [], "Assets:Test", importer),
+        imported: list[Imported] = [
+            ("file.csv", directives, "Assets:Test", importer),
         ]
 
         result = hook(imported, [])
@@ -63,9 +83,9 @@ class TestHook:
         hook = Hook()
         importer = MagicMock()
         importer.name = "TestImporter"
+        directives = [create_transaction()]
 
-        directives = MagicMock()
-        imported: list[Directives] = [
+        imported: list[Imported] = [
             ("/path/to/file.bean", directives, "Assets:Checking", importer),
         ]
 

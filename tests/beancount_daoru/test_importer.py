@@ -28,10 +28,10 @@ class MockReader:
         self._captions = captions
         self._records = records
 
-    def read_captions(self, _: Path) -> Iterator[str]:
+    def read_captions(self, _file: Path) -> Iterator[str]:
         return iter(self._captions)
 
-    def read_records(self, _: Path) -> Iterator[dict[str, str]]:
+    def read_records(self, _file: Path) -> Iterator[dict[str, str]]:
         return iter(self._records)
 
 
@@ -54,10 +54,10 @@ class MockParser(Parser):
     def reversed(self) -> bool:
         return self._is_reversed
 
-    def extract_metadata(self, _: Iterator[str]) -> Metadata:
+    def extract_metadata(self, _texts: Iterator[str]) -> Metadata:
         return self._metadata
 
-    def parse(self, _: dict[str, str]) -> Transaction:
+    def parse(self, _record: dict[str, str]) -> Transaction:
         if self._call_index < len(self._transactions):
             tx = self._transactions[self._call_index]
             self._call_index += 1
@@ -294,7 +294,7 @@ class TestImporterExtract:
         )
 
         # 让解析器抛出 ParserError
-        def failing_parse(_: dict[str, str]) -> Transaction:
+        def failing_parse(_record: dict[str, str]) -> Transaction:
             err_msg = "test_error"
             raise ParserError(err_msg)
 
@@ -352,9 +352,9 @@ class TestImporterDeduplicate:
             diff_amount=None,
         )
 
-        entries = [balance1, balance2]
+        entries: list[beancount.Balance] = [balance1, balance2]
 
-        importer.deduplicate(entries, [])
+        importer.deduplicate(entries, [])  # type: ignore[arg-type]
 
         # 第二个 balance 应该标记为 DUPLICATE
         assert DUPLICATE in balance1.meta
@@ -679,10 +679,10 @@ class TestParserProtocol:
 
         # Protocol 类不能直接实例化,使用子类测试默认 reversed 属性
         class TestParser(Parser):
-            def extract_metadata(self, _: Iterator[str]) -> Metadata:
+            def extract_metadata(self, _texts: Iterator[str]) -> Metadata:
                 return Metadata(account=None, date=None)
 
-            def parse(self, _: dict[str, str]) -> Transaction:
+            def parse(self, _record: dict[str, str]) -> Transaction:
                 return Transaction(date=datetime.date(2024, 1, 1), extra=Extra())
 
         parser = TestParser()

@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import sys
 from datetime import date
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 from beancount import (
     FLAG_OKAY,
     FLAG_WARNING,
@@ -35,11 +40,17 @@ from beancount_daoru.hooks.predict_missing_posting import (
     _HistoryIndex,
 )
 
+# usearch 在 Windows 上有访问冲突问题, 跳过相关测试
+USEARCH_SKIP_MARK = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="usearch has access violation issues on Windows",
+)
+
 # ===== 测试固件 =====
 
 
 @pytest.fixture
-def temp_cache_dir() -> Path:
+def temp_cache_dir() -> Generator[Path, None, None]:
     """创建临时缓存目录."""
     with TemporaryDirectory() as tmpdir:
         yield Path(tmpdir)
@@ -80,8 +91,8 @@ def sample_transaction() -> Transaction:
         flag=FLAG_OKAY,
         narration="Test transaction",
         payee=None,
-        links=(),
-        tags=(),
+        links=frozenset(),
+        tags=frozenset(),
         meta=Meta({"source": "test"}),
         postings=[
             Posting(
@@ -104,8 +115,8 @@ def sample_transaction_with_flag() -> Transaction:
         flag=FLAG_WARNING,
         narration="Test transaction with flag",
         payee=None,
-        links=(),
-        tags=(),
+        links=frozenset(),
+        tags=frozenset(),
         meta=Meta({}),
         postings=[
             Posting(
@@ -128,8 +139,8 @@ def multi_posting_transaction() -> Transaction:
         flag=FLAG_OKAY,
         narration="Multi-posting transaction",
         payee=None,
-        links=(),
-        tags=(),
+        links=frozenset(),
+        tags=frozenset(),
         meta=Meta({}),
         postings=[
             Posting(
@@ -160,8 +171,8 @@ def transaction_with_posting_flag() -> Transaction:
         flag=FLAG_OKAY,
         narration="Transaction with posting flag",
         payee=None,
-        links=(),
-        tags=(),
+        links=frozenset(),
+        tags=frozenset(),
         meta=Meta({}),
         postings=[
             Posting(
@@ -274,6 +285,7 @@ class TestEncoder:
 # ===== TransactionIndex 测试 =====
 
 
+@USEARCH_SKIP_MARK
 class TestTransactionIndex:
     """TransactionIndex 类的测试."""
 
@@ -289,8 +301,8 @@ class TestTransactionIndex:
             flag=FLAG_OKAY,
             narration="Test transaction",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[
                 Posting(
@@ -331,8 +343,8 @@ class TestTransactionIndex:
             flag=FLAG_OKAY,
             narration="Test transaction",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[
                 Posting(
@@ -392,8 +404,8 @@ class TestTransactionIndex:
             flag=FLAG_OKAY,
             narration="Transaction 1",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[
                 Posting("Assets:Test", None, None, None, None, None),
@@ -410,8 +422,8 @@ class TestTransactionIndex:
                 flag=FLAG_OKAY,
                 narration="Search transaction",
                 payee=None,
-                links=(),
-                tags=(),
+                links=frozenset(),
+                tags=frozenset(),
                 meta=Meta({}),
                 postings=[Posting("Assets:Test", None, None, None, None, None)],
             )
@@ -422,6 +434,7 @@ class TestTransactionIndex:
 # ===== HistoryIndex 测试 =====
 
 
+@USEARCH_SKIP_MARK
 class TestHistoryIndex:
     """HistoryIndex 类的测试."""
 
@@ -521,8 +534,8 @@ class TestHistoryIndex:
             flag=FLAG_OKAY,
             narration="Test",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[
                 Posting("Assets:NonExistent", None, None, None, None, None),
@@ -544,8 +557,8 @@ class TestHistoryIndex:
             flag=FLAG_OKAY,
             narration="Valid transaction",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[
                 Posting("Assets:Test", None, None, None, None, None),
@@ -566,8 +579,8 @@ class TestHistoryIndex:
             flag=FLAG_WARNING,
             narration="Warning transaction",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[
                 Posting("Assets:Test", None, None, None, None, None),
@@ -588,8 +601,8 @@ class TestHistoryIndex:
             flag=FLAG_OKAY,
             narration="Single posting",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[Posting("Assets:Test", None, None, None, None, None)],
         )
@@ -607,8 +620,8 @@ class TestHistoryIndex:
             flag=FLAG_OKAY,
             narration="Posting with flag",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[
                 Posting("Assets:Test", None, None, None, FLAG_WARNING, None),
@@ -650,8 +663,8 @@ class TestHistoryIndex:
             flag=FLAG_OKAY,
             narration="Test transaction",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[
                 Posting("Assets:Test", None, None, None, None, None),
@@ -671,8 +684,8 @@ class TestHistoryIndex:
                 flag=FLAG_OKAY,
                 narration="Search transaction",
                 payee=None,
-                links=(),
-                tags=(),
+                links=frozenset(),
+                tags=frozenset(),
                 meta=Meta({}),
                 postings=[Posting("Assets:Test", None, None, None, None, None)],
             )
@@ -721,8 +734,8 @@ class TestHistoryIndex:
             flag="!",
             narration="Warning transaction",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[
                 Posting("Assets:Test", None, None, None, None, None),
@@ -743,8 +756,8 @@ class TestHistoryIndex:
             flag=FLAG_OKAY,
             narration="Test",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[
                 Posting("Assets:Test", None, None, None, FLAG_WARNING, None),
@@ -843,6 +856,7 @@ class TestChatBot:
 # ===== AccountPredictor 测试 =====
 
 
+@USEARCH_SKIP_MARK
 class TestAccountPredictor:
     """AccountPredictor 类的测试."""
 
@@ -868,8 +882,8 @@ class TestAccountPredictor:
             flag=FLAG_OKAY,
             narration="Valid transaction",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[Posting("Assets:Test", None, None, None, None, None)],
         )
@@ -897,8 +911,8 @@ class TestAccountPredictor:
             flag=FLAG_OKAY,
             narration="Multi posting",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[
                 Posting("Assets:Test", None, None, None, None, None),
@@ -965,8 +979,8 @@ class TestAccountPredictor:
             flag=FLAG_OKAY,
             narration="Test narration",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[
                 Posting("Assets:Test", None, None, None, None, None),
@@ -1010,8 +1024,8 @@ class TestAccountPredictor:
             flag=FLAG_OKAY,
             narration="Similar transaction",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[
                 Posting("Assets:Test", None, None, None, None, None),
@@ -1033,8 +1047,8 @@ class TestAccountPredictor:
             flag=FLAG_OKAY,
             narration="Test",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[Posting("Assets:Test", None, None, None, None, None)],
         )
@@ -1095,8 +1109,8 @@ class TestAccountPredictor:
             flag=FLAG_OKAY,
             narration="Multi posting",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[
                 Posting("Assets:Test", None, None, None, None, None),
@@ -1125,8 +1139,8 @@ class TestAccountPredictor:
             flag=FLAG_OKAY,
             narration="Test",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[Posting("Assets:Test", None, None, None, None, None)],
         )
@@ -1158,8 +1172,8 @@ class TestAccountPredictor:
             flag=FLAG_OKAY,
             narration="Test",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[Posting("Assets:Test", None, None, None, None, None)],
         )
@@ -1191,8 +1205,8 @@ class TestAccountPredictor:
             flag=FLAG_OKAY,
             narration="Test",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[Posting("Assets:Test", None, None, None, None, None)],
         )
@@ -1211,6 +1225,7 @@ class TestAccountPredictor:
 # ===== Hook 集成测试 =====
 
 
+@USEARCH_SKIP_MARK
 class TestHook:
     """Hook 类的测试."""
 
@@ -1263,6 +1278,7 @@ class TestHook:
 # ===== 边界情况测试 =====
 
 
+@USEARCH_SKIP_MARK
 class TestEdgeCases:
     """边界情况测试."""
 
@@ -1333,8 +1349,8 @@ class TestEdgeCases:
             flag=None,
             narration="Test",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[Posting("Assets:Test", None, None, None, None, None)],
         )
@@ -1357,8 +1373,8 @@ class TestEdgeCases:
             flag=FLAG_OKAY,
             narration="Test",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[Posting("Assets:Test", None, None, None, None, None)],
         )
@@ -1445,6 +1461,7 @@ class TestEncoderContextManager:
 # ===== Hook 集成测试 =====
 
 
+@USEARCH_SKIP_MARK
 class TestHookIntegration:
     """Hook 集成测试."""
 
@@ -1522,8 +1539,8 @@ class TestHookIntegration:
                 flag=FLAG_OKAY,
                 narration=f"Test transaction {i}",
                 payee=None,
-                links=(),
-                tags=(),
+                links=frozenset(),
+                tags=frozenset(),
                 meta=Meta({}),
                 postings=[Posting("Assets:Test", None, None, None, None, None)],
             )
@@ -1594,8 +1611,8 @@ class TestHookIntegration:
             flag=FLAG_OKAY,
             narration="Test transaction",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[
                 Posting("Assets:Test", None, None, None, None, None),
@@ -1614,8 +1631,8 @@ class TestHookIntegration:
                 flag=FLAG_OKAY,
                 narration="Search transaction",
                 payee=None,
-                links=(),
-                tags=(),
+                links=frozenset(),
+                tags=frozenset(),
                 meta=Meta({}),
                 postings=[Posting("Assets:Test", None, None, None, None, None)],
             )
@@ -1627,6 +1644,7 @@ class TestHookIntegration:
 # ===== _HistoryIndex.search 测试 =====
 
 
+@USEARCH_SKIP_MARK
 class TestHistoryIndexSearch:
     """_HistoryIndex.search 测试."""
 
@@ -1672,8 +1690,8 @@ class TestHistoryIndexSearch:
                 flag=FLAG_OKAY,
                 narration="Restaurant expense",
                 payee=None,
-                links=(),
-                tags=(),
+                links=frozenset(),
+                tags=frozenset(),
                 meta=Meta({}),
                 postings=[
                     Posting("Assets:Test", None, None, None, None, None),
@@ -1687,8 +1705,8 @@ class TestHistoryIndexSearch:
                 flag=FLAG_OKAY,
                 narration="Search similar",
                 payee=None,
-                links=(),
-                tags=(),
+                links=frozenset(),
+                tags=frozenset(),
                 meta=Meta({}),
                 postings=[Posting("Assets:Test", None, None, None, None, None)],
             )
@@ -1701,6 +1719,7 @@ class TestHistoryIndexSearch:
 # ===== _TransactionIndex 重复检测测试 =====
 
 
+@USEARCH_SKIP_MARK
 class TestTransactionIndexDuplicate:
     """_TransactionIndex 重复检测测试."""
 
@@ -1717,8 +1736,8 @@ class TestTransactionIndexDuplicate:
             flag=FLAG_OKAY,
             narration="Test transaction",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[
                 Posting("Assets:Test", None, None, None, None, None),
@@ -1742,6 +1761,7 @@ class TestTransactionIndexDuplicate:
 # ===== 补充覆盖率测试 =====
 
 
+@USEARCH_SKIP_MARK
 class TestAdditionalCoverage:
     """补充覆盖率测试."""
 
@@ -1779,8 +1799,8 @@ class TestAdditionalCoverage:
             flag=FLAG_OKAY,
             narration="Single posting",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[
                 Posting("Assets:Test", None, None, None, None, None),
@@ -1807,8 +1827,8 @@ class TestAdditionalCoverage:
             flag="!",
             narration="Warning transaction",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[
                 Posting("Assets:Test", None, None, None, None, None),
@@ -1834,8 +1854,8 @@ class TestAdditionalCoverage:
             flag=FLAG_OKAY,
             narration="Multiple postings",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[
                 Posting("Assets:Test", None, None, None, None, None),
@@ -1862,8 +1882,8 @@ class TestAdditionalCoverage:
             flag=FLAG_OKAY,
             narration="Test",
             payee=None,
-            links=(),
-            tags=(),
+            links=frozenset(),
+            tags=frozenset(),
             meta=Meta({}),
             postings=[
                 Posting("Assets:Test", None, None, None, FLAG_WARNING, None),

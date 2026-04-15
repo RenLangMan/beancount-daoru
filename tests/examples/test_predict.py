@@ -66,7 +66,7 @@ def start_llama_server(  # noqa: PLR0913
         max_read_lines = sys.maxsize
         timeout = 600
 
-        @property
+        @property  # type: ignore[override]
         def args(self) -> list[str]:
             cmd_args: list[str] = [exec_name]
 
@@ -94,7 +94,7 @@ def start_llama_server(  # noqa: PLR0913
                 cmd_args.append("--embedding")
             return cmd_args
 
-        @property
+        @property  # type: ignore[override]
         def pattern(self) -> str:
             return "main: server is listening on"
 
