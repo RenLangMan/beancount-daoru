@@ -14,13 +14,13 @@ echo "🔍 检查本地工具..."
 TOOLS=("ruff" "basedpyright" "markdownlint-cli2" "shellcheck" "shfmt" "pre-commit")
 
 for tool in "${TOOLS[@]}"; do
-	if command -v "$tool" &> /dev/null; then
-		echo "  ✅ $tool: $(which "$tool")"
-	elif command -v "uv run $tool" &> /dev/null; then
-		echo "  ✅ $tool: uv run"
-	else
-		echo "  ❌ $tool: 未安装"
-	fi
+  if command -v "$tool" &> /dev/null; then
+    echo "  ✅ $tool: $(which "$tool")"
+  elif command -v "uv run $tool" &> /dev/null; then
+    echo "  ✅ $tool: uv run"
+  else
+    echo "  ❌ $tool: 未安装"
+  fi
 done
 
 echo ""
@@ -30,11 +30,11 @@ echo "🔍 检查 CI 配置..."
 CI_CHECKS=("ruff" "basedpyright" "markdownlint" "shellcheck" "shfmt" "uvlock")
 
 for check in "${CI_CHECKS[@]}"; do
-	if grep -q "$check" .cnb.yml; then
-		echo "  ✅ $check: 已配置"
-	else
-		echo "  ❌ $check: 未配置"
-	fi
+  if grep -q "$check" .cnb.yml; then
+    echo "  ✅ $check: 已配置"
+  else
+    echo "  ❌ $check: 未配置"
+  fi
 done
 
 echo ""
@@ -44,11 +44,11 @@ echo "🔍 检查 Dockerfile 工具..."
 DOCKER_TOOLS=("shellcheck" "shfmt" "nodejs" "markdownlint-cli2")
 
 for tool in "${DOCKER_TOOLS[@]}"; do
-	if grep -q "$tool" .ide/Dockerfile; then
-		echo "  ✅ $tool: 已安装"
-	else
-		echo "  ❌ $tool: 未安装"
-	fi
+  if grep -q "$tool" .ide/Dockerfile; then
+    echo "  ✅ $tool: 已安装"
+  else
+    echo "  ❌ $tool: 未安装"
+  fi
 done
 
 echo ""

@@ -13,9 +13,9 @@ TARGET_PATH="$MODELS_DIR/$MODEL_NAME"
 
 # 检查是否已存在
 if [ -f "$TARGET_PATH" ]; then
-	echo "✅ 模型已存在: $TARGET_PATH"
-	ls -lh "$TARGET_PATH"
-	exit 0
+  echo "✅ 模型已存在: $TARGET_PATH"
+  ls -lh "$TARGET_PATH"
+  exit 0
 fi
 
 echo "📦 下载 Embedding 模型..."
@@ -23,8 +23,8 @@ echo "   URL: $MODEL_URL"
 echo "   目标: $TARGET_PATH"
 
 wget --progress=bar:force \
-	-O "$TARGET_PATH" \
-	"$MODEL_URL"
+  -O "$TARGET_PATH" \
+  "$MODEL_URL"
 
 echo ""
 echo "✅ 下载完成!"

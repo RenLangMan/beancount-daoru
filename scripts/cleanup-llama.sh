@@ -7,11 +7,11 @@ pkill -9 -f llama-server 2> /dev/null || true
 
 # 清理特定端口
 for port in 1314 9527 8080; do
-	if lsof -i:"$port" > /dev/null 2>&1; then
-		echo "清理端口 $port..."
-		# 修复 SC2046: 使用 xargs 或数组来安全处理
-		lsof -t -i:"$port" 2> /dev/null | xargs -r kill -9
-	fi
+  if lsof -i:"$port" > /dev/null 2>&1; then
+    echo "清理端口 $port..."
+    # 修复 SC2046: 使用 xargs 或数组来安全处理
+    lsof -t -i:"$port" 2> /dev/null | xargs -r kill -9
+  fi
 done
 
 # 清理 pytest-xprocess 缓存
@@ -28,9 +28,9 @@ echo ""
 echo "当前 llama-server 进程:"
 # 修复 SC2009: 使用 pgrep 替代 ps | grep
 if pgrep -f llama-server > /dev/null 2>&1; then
-	pgrep -af llama-server
+  pgrep -af llama-server
 else
-	echo "无"
+  echo "无"
 fi
 
 echo ""

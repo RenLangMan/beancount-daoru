@@ -50,9 +50,9 @@ ______________________________________________________________________
 这是最常用的环境初始化命令。它会执行以下操作：
 
 1. 检查 uv 是否已安装
-1. 创建或检查虚拟环境（`.venv`）
-1. 同步所有依赖到虚拟环境
-1. 显示当前环境状态
+2. 创建或检查虚拟环境（`.venv`）
+3. 同步所有依赖到虚拟环境
+4. 显示当前环境状态
 
 如果虚拟环境已存在，脚本会询问是否重建。这是一个**幂等操作**，可以安全重复执行。
 
@@ -187,10 +187,10 @@ ______________________________________________________________________
 自动修复代码质量问题，按顺序执行：
 
 1. **Markdown** - 使用 markdownlint-cli2 修复 Markdown 格式问题
-1. **Markdown 格式化** - 使用 mdformat 格式化 Markdown 文件
-1. **Python 格式** - 使用 ruff format 格式化代码
-1. **Python 检查** - 使用 ruff check --fix 修复代码问题
-1. **Shell 脚本** - 使用 shfmt 格式化 Shell 脚本
+2. **Markdown 格式化** - 使用 mdformat 格式化 Markdown 文件
+3. **Python 格式** - 使用 ruff format 格式化代码
+4. **Python 检查** - 使用 ruff check --fix 修复代码问题
+5. **Shell 脚本** - 使用 shfmt 格式化 Shell 脚本
 
 使用建议：在提交代码前运行此命令可以快速修复大部分格式问题。
 
@@ -311,8 +311,8 @@ ______________________________________________________________________
 运行需要 LLM 模型的测试（标记为 `llm` 的测试）。此命令会：
 
 1. 检查模型文件是否存在
-1. 同步 llm 依赖
-1. 运行标记为 `-m "llm"` 的测试
+2. 同步 llm 依赖
+3. 运行标记为 `-m "llm"` 的测试
 
 **前提条件**：需要已下载 LLM 模型文件到 `/opt/models/` 目录。
 
@@ -390,7 +390,7 @@ ______________________________________________________________________
 发布前需要：
 
 1. 确保 `dist/` 目录有构建产物
-1. 配置 TestPyPI 凭据
+2. 配置 TestPyPI 凭据
 
 ### publish - 发布到 PyPI
 
@@ -399,7 +399,7 @@ ______________________________________________________________________
 将构建产物发布到正式的 PyPI。在执行前会：
 
 1. 提示确认版本号
-1. 要求用户输入 `y` 确认
+2. 要求用户输入 `y` 确认
 
 **警告**：此操作不可逆，发布到正式 PyPI 后无法撤回。
 
@@ -437,8 +437,8 @@ ______________________________________________________________________
 执行完全清理，包括：
 
 1. 所有 `clean` 清理的内容
-1. 删除虚拟环境（`.venv`）
-1. 删除构建产物（`dist/`、`build/`、`*.egg-info/`）
+2. 删除虚拟环境（`.venv`）
+3. 删除构建产物（`dist/`、`build/`、`*.egg-info/`）
 
 **警告**：此命令需要确认，因为会删除虚拟环境。
 
@@ -457,10 +457,10 @@ ______________________________________________________________________
 执行完整的开发流水线，包括 5 个阶段：
 
 1. **环境检查** - 检查虚拟环境，不存在则创建
-1. **同步依赖** - 同步所有依赖
-1. **代码修复** - 自动修复格式问题
-1. **代码检查** - 运行所有质量检查
-1. **运行测试** - 执行单元测试和 LLM 测试
+2. **同步依赖** - 同步所有依赖
+3. **代码修复** - 自动修复格式问题
+4. **代码检查** - 运行所有质量检查
+5. **运行测试** - 执行单元测试和 LLM 测试
 
 这是日常开发中使用最频繁的命令，在提交代码前运行可以确保代码质量。
 
@@ -557,9 +557,9 @@ ______________________________________________________________________
 测试 LLM API 的可用性，包括：
 
 1. 检查服务是否运行，未运行则询问是否启动
-1. 测试健康检查端点
-1. 获取模型信息
-1. 执行推理测试（发送 prompt 并获取响应）
+2. 测试健康检查端点
+3. 获取模型信息
+4. 执行推理测试（发送 prompt 并获取响应）
 
 如果服务未运行，会提示启动。
 
@@ -581,20 +581,20 @@ ______________________________________________________________________
 
 以下环境变量可用于自定义行为：
 
-| 变量 | 说明 | 默认值 |
+| 变量                      | 说明              | 默认值                             |
 | ------------------------- | ----------------- | ---------------------------------- |
-| `UV_PATH` | uv 可执行文件路径 | - |
-| `PYTHON_PATH` | Python 解释器路径 | - |
-| `UV_INDEX_URL` | PyPI 镜像 URL | - |
-| `UV_CONCURRENT_DOWNLOADS` | 并发下载数 | - |
-| `UV_LINK_MODE` | 依赖链接模式 | copy |
-| `LLAMA_SERVER` | llama-server 路径 | - |
-| `LLAMA_MODEL` | LLM 模型文件路径 | /opt/models/qwen3-4b-instruct.gguf |
-| `LLAMA_HOST` | 服务监听地址 | 0.0.0.0 |
-| `LLAMA_PORT` | 服务监听端口 | 8080 |
-| `LLAMA_N_GPU_LAYERS` | GPU 加速层数 | 0 |
-| `LLAMA_CONTEXT_SIZE` | 上下文窗口大小 | 2048 |
-| `TEST_CHAT_MODEL` | 测试用模型路径 | - |
+| `UV_PATH`                 | uv 可执行文件路径 | -                                  |
+| `PYTHON_PATH`             | Python 解释器路径 | -                                  |
+| `UV_INDEX_URL`            | PyPI 镜像 URL     | -                                  |
+| `UV_CONCURRENT_DOWNLOADS` | 并发下载数        | -                                  |
+| `UV_LINK_MODE`            | 依赖链接模式      | copy                               |
+| `LLAMA_SERVER`            | llama-server 路径 | -                                  |
+| `LLAMA_MODEL`             | LLM 模型文件路径  | /opt/models/qwen3-4b-instruct.gguf |
+| `LLAMA_HOST`              | 服务监听地址      | 0.0.0.0                            |
+| `LLAMA_PORT`              | 服务监听端口      | 8080                               |
+| `LLAMA_N_GPU_LAYERS`      | GPU 加速层数      | 0                                  |
+| `LLAMA_CONTEXT_SIZE`      | 上下文窗口大小    | 2048                               |
+| `TEST_CHAT_MODEL`         | 测试用模型路径    | -                                  |
 
 ______________________________________________________________________
 
@@ -755,41 +755,41 @@ ______________________________________________________________________
 
 ## 命令索引
 
-| 命令 | 别名 | 说明 |
+| 命令              | 别名             | 说明               |
 | ----------------- | ---------------- | ------------------ |
-| setup | install | 完整环境设置 |
-| reset | recreate | 重建虚拟环境 |
-| status | st | 查看环境状态 |
-| sync | s | 同步依赖 |
-| upgrade | up | 更新所有依赖 |
-| add | - | 添加依赖 |
-| remove | rm | 移除依赖 |
-| check | c | 运行所有检查 |
-| fix | fmt | 自动修复问题 |
-| lint | l | Ruff 代码检查 |
-| format | - | Ruff 格式化检查 |
-| type | ty | 类型检查 |
-| markdownlint | md | Markdown 检查 |
-| mdformat | mdf | Markdown 格式化 |
-| shellcheck | sc | Shell 脚本检查 |
-| shfmt | sf | Shell 格式化检查 |
-| uvlock | lock | uv.lock 一致性检查 |
-| test | t | 运行单元测试 |
-| test-llm | tl | 运行 LLM 测试 |
-| test-all | ta | 运行全部测试 |
-| test-cov | coverage, cov | 测试覆盖率 |
-| test-file | tf | 运行指定测试 |
-| build | b | 构建项目 |
-| publish-test | publish-testpypi | 发布到 TestPyPI |
-| publish | pypi | 发布到 PyPI |
-| clean | cache | 清理缓存 |
-| clean-all | distclean | 完全清理 |
-| pipeline | full | 完整开发流水线 |
-| ci | - | CI 检查流水线 |
-| precommit-install | - | 安装 pre-commit |
-| precommit | precommit-run | 运行 pre-commit |
-| llm-status | llm | LLM 服务状态 |
-| llm-start | - | 启动 LLM 服务 |
-| llm-stop | - | 停止 LLM 服务 |
-| llm-test | - | 测试 LLM API |
-| llm-download | - | 下载模型 |
+| setup             | install          | 完整环境设置       |
+| reset             | recreate         | 重建虚拟环境       |
+| status            | st               | 查看环境状态       |
+| sync              | s                | 同步依赖           |
+| upgrade           | up               | 更新所有依赖       |
+| add               | -                | 添加依赖           |
+| remove            | rm               | 移除依赖           |
+| check             | c                | 运行所有检查       |
+| fix               | fmt              | 自动修复问题       |
+| lint              | l                | Ruff 代码检查      |
+| format            | -                | Ruff 格式化检查    |
+| type              | ty               | 类型检查           |
+| markdownlint      | md               | Markdown 检查      |
+| mdformat          | mdf              | Markdown 格式化    |
+| shellcheck        | sc               | Shell 脚本检查     |
+| shfmt             | sf               | Shell 格式化检查   |
+| uvlock            | lock             | uv.lock 一致性检查 |
+| test              | t                | 运行单元测试       |
+| test-llm          | tl               | 运行 LLM 测试      |
+| test-all          | ta               | 运行全部测试       |
+| test-cov          | coverage, cov    | 测试覆盖率         |
+| test-file         | tf               | 运行指定测试       |
+| build             | b                | 构建项目           |
+| publish-test      | publish-testpypi | 发布到 TestPyPI    |
+| publish           | pypi             | 发布到 PyPI        |
+| clean             | cache            | 清理缓存           |
+| clean-all         | distclean        | 完全清理           |
+| pipeline          | full             | 完整开发流水线     |
+| ci                | -                | CI 检查流水线      |
+| precommit-install | -                | 安装 pre-commit    |
+| precommit         | precommit-run    | 运行 pre-commit    |
+| llm-status        | llm              | LLM 服务状态       |
+| llm-start         | -                | 启动 LLM 服务      |
+| llm-stop          | -                | 停止 LLM 服务      |
+| llm-test          | -                | 测试 LLM API       |
+| llm-download      | -                | 下载模型           |
