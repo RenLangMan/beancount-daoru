@@ -110,7 +110,7 @@ class _Encoder:
     def close(self) -> None:
         """关闭编码器,释放底层资源."""
         if hasattr(self, "_Encoder__cache"):
-            self.__cache.close()  # pyright: ignore[reportAttributeAccessIssue]
+            self.__cache.close()
 
     def __enter__(self) -> "Self":
         """支持上下文管理器入口."""
@@ -474,7 +474,7 @@ class _AccountPredictor:
         self.__chat_bot = chat_bot
         self.__index = index
         self.__extra_system_prompt = extra_system_prompt
-        self.__validator = TypeAdapter(str | None)
+        self.__validator: TypeAdapter[str | None] = TypeAdapter(str | None)
 
     def _check_transaction(self, transaction: Transaction) -> bool:
         """检查交易是否适合进行科目预测.
@@ -650,8 +650,10 @@ class _AccountPredictor:
         # 验证响应
 
         try:
-            data = json.loads(response)
-            predicted_account = data.get("account")
+            data: dict[str, object] = json.loads(response)  # type: ignore[reportAny]
+            predicted_account: str | None = (
+                str(data.get("account")) if data.get("account") else None
+            )
         except (json.JSONDecodeError, AttributeError, KeyError):
             # 如果 JSON 解析失败,尝试直接使用响应文本
             predicted_account = response.strip() if response else None
