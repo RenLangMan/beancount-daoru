@@ -581,20 +581,20 @@ ______________________________________________________________________
 
 以下环境变量可用于自定义行为：
 
-| 变量                      | 说明              | 默认值                             |
+| 变量 | 说明 | 默认值 |
 | ------------------------- | ----------------- | ---------------------------------- |
-| `UV_PATH`                 | uv 可执行文件路径 | -                                  |
-| `PYTHON_PATH`             | Python 解释器路径 | -                                  |
-| `UV_INDEX_URL`            | PyPI 镜像 URL     | -                                  |
-| `UV_CONCURRENT_DOWNLOADS` | 并发下载数        | -                                  |
-| `UV_LINK_MODE`            | 依赖链接模式      | copy                               |
-| `LLAMA_SERVER`            | llama-server 路径 | -                                  |
-| `LLAMA_MODEL`             | LLM 模型文件路径  | /opt/models/qwen3-4b-instruct.gguf |
-| `LLAMA_HOST`              | 服务监听地址      | 0.0.0.0                            |
-| `LLAMA_PORT`              | 服务监听端口      | 8080                               |
-| `LLAMA_N_GPU_LAYERS`      | GPU 加速层数      | 0                                  |
-| `LLAMA_CONTEXT_SIZE`      | 上下文窗口大小    | 2048                               |
-| `TEST_CHAT_MODEL`         | 测试用模型路径    | -                                  |
+| `UV_PATH` | uv 可执行文件路径 | - |
+| `PYTHON_PATH` | Python 解释器路径 | - |
+| `UV_INDEX_URL` | PyPI 镜像 URL | - |
+| `UV_CONCURRENT_DOWNLOADS` | 并发下载数 | - |
+| `UV_LINK_MODE` | 依赖链接模式 | copy |
+| `LLAMA_SERVER` | llama-server 路径 | - |
+| `LLAMA_MODEL` | LLM 模型文件路径 | /opt/models/qwen3-4b-instruct.gguf |
+| `LLAMA_HOST` | 服务监听地址 | 0.0.0.0 |
+| `LLAMA_PORT` | 服务监听端口 | 8080 |
+| `LLAMA_N_GPU_LAYERS` | GPU 加速层数 | 0 |
+| `LLAMA_CONTEXT_SIZE` | 上下文窗口大小 | 2048 |
+| `TEST_CHAT_MODEL` | 测试用模型路径 | - |
 
 ______________________________________________________________________
 
@@ -755,41 +755,41 @@ ______________________________________________________________________
 
 ## 命令索引
 
-| 命令              | 别名             | 说明               |
+| 命令 | 别名 | 说明 |
 | ----------------- | ---------------- | ------------------ |
-| setup             | install          | 完整环境设置       |
-| reset             | recreate         | 重建虚拟环境       |
-| status            | st               | 查看环境状态       |
-| sync              | s                | 同步依赖           |
-| upgrade           | up               | 更新所有依赖       |
-| add               | -                | 添加依赖           |
-| remove            | rm               | 移除依赖           |
-| check             | c                | 运行所有检查       |
-| fix               | fmt              | 自动修复问题       |
-| lint              | l                | Ruff 代码检查      |
-| format            | -                | Ruff 格式化检查    |
-| type              | ty               | 类型检查           |
-| markdownlint      | md               | Markdown 检查      |
-| mdformat          | mdf              | Markdown 格式化    |
-| shellcheck        | sc               | Shell 脚本检查     |
-| shfmt             | sf               | Shell 格式化检查   |
-| uvlock            | lock             | uv.lock 一致性检查 |
-| test              | t                | 运行单元测试       |
-| test-llm          | tl               | 运行 LLM 测试      |
-| test-all          | ta               | 运行全部测试       |
-| test-cov          | coverage, cov    | 测试覆盖率         |
-| test-file         | tf               | 运行指定测试       |
-| build             | b                | 构建项目           |
-| publish-test      | publish-testpypi | 发布到 TestPyPI    |
-| publish           | pypi             | 发布到 PyPI        |
-| clean             | cache            | 清理缓存           |
-| clean-all         | distclean        | 完全清理           |
-| pipeline          | full             | 完整开发流水线     |
-| ci                | -                | CI 检查流水线      |
-| precommit-install | -                | 安装 pre-commit    |
-| precommit         | precommit-run    | 运行 pre-commit    |
-| llm-status        | llm              | LLM 服务状态       |
-| llm-start         | -                | 启动 LLM 服务      |
-| llm-stop          | -                | 停止 LLM 服务      |
-| llm-test          | -                | 测试 LLM API       |
-| llm-download      | -                | 下载模型           |
+| setup | install | 完整环境设置 |
+| reset | recreate | 重建虚拟环境 |
+| status | st | 查看环境状态 |
+| sync | s | 同步依赖 |
+| upgrade | up | 更新所有依赖 |
+| add | - | 添加依赖 |
+| remove | rm | 移除依赖 |
+| check | c | 运行所有检查 |
+| fix | fmt | 自动修复问题 |
+| lint | l | Ruff 代码检查 |
+| format | - | Ruff 格式化检查 |
+| type | ty | 类型检查 |
+| markdownlint | md | Markdown 检查 |
+| mdformat | mdf | Markdown 格式化 |
+| shellcheck | sc | Shell 脚本检查 |
+| shfmt | sf | Shell 格式化检查 |
+| uvlock | lock | uv.lock 一致性检查 |
+| test | t | 运行单元测试 |
+| test-llm | tl | 运行 LLM 测试 |
+| test-all | ta | 运行全部测试 |
+| test-cov | coverage, cov | 测试覆盖率 |
+| test-file | tf | 运行指定测试 |
+| build | b | 构建项目 |
+| publish-test | publish-testpypi | 发布到 TestPyPI |
+| publish | pypi | 发布到 PyPI |
+| clean | cache | 清理缓存 |
+| clean-all | distclean | 完全清理 |
+| pipeline | full | 完整开发流水线 |
+| ci | - | CI 检查流水线 |
+| precommit-install | - | 安装 pre-commit |
+| precommit | precommit-run | 运行 pre-commit |
+| llm-status | llm | LLM 服务状态 |
+| llm-start | - | 启动 LLM 服务 |
+| llm-stop | - | 停止 LLM 服务 |
+| llm-test | - | 测试 LLM API |
+| llm-download | - | 下载模型 |
