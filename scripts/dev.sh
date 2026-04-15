@@ -192,7 +192,7 @@ run_markdownlint() {
 run_mdformat() {
   print_step "Markdown 格式化..."
   if uv run mdformat --version &> /dev/null; then
-    uv run mdformat docs/ scripts/ README.md CONTRIBUTING.md NOTICE.md QUICKSTART.md
+    uv run mdformat --wrap keep --number docs/ scripts/ README.md CONTRIBUTING.md NOTICE.md QUICKSTART.md
     print_success "Markdown 格式化完成"
   else
     print_warn "mdformat 未安装，跳过 Markdown 格式化"
@@ -294,7 +294,7 @@ fix_code() {
 
   print_step "格式化 Markdown 文件..."
   if command -v mdformat &> /dev/null; then
-    uv run mdformat docs/ scripts/ README.md CONTRIBUTING.md NOTICE.md QUICKSTART.md
+    uv run mdformat --wrap keep --number docs/ scripts/ README.md CONTRIBUTING.md NOTICE.md QUICKSTART.md
     print_success "Markdown 格式化完成"
   else
     print_warn "mdformat 未安装，跳过 Markdown 格式化"
