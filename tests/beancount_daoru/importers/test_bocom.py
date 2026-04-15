@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 
 from beancount_daoru.importer import Extra, Metadata, ParserError, Posting, Transaction
-from beancount_daoru.importers.bocom import Parser
+from beancount_daoru.importers.bocom import Importer, Parser, _validate_str
 
 
 @pytest.fixture(scope="module")
@@ -191,3 +191,100 @@ def test_parse_error(parser: Parser, record: dict[str, str], message: str) -> No
     with pytest.raises(ParserError) as excinfo:
         _ = parser.parse(record)
     assert str(excinfo.value) == message
+
+
+def test_reversed_property(parser: Parser) -> None:
+    """测试 reversed 属性返回 True.
+
+    交通银行需要反转记账方向。
+    """
+    assert parser.reversed is True
+
+
+def test_extract_metadata_missing_account(parser: Parser) -> None:
+    """测试提取元数据时缺少账户信息抛出异常."""
+    caption = (
+        "交通银行个人客户交易清单\n"
+        "Bocom Personal Account Details\n"
+        "  支持交通银行手机银行扫码验真\n"
+        "部门Department: 01120123456 柜员Search Teller: EBB0001\n"
+        "打印日期Printing Date: 2020-12-31 12:00:00\n"
+        "户名Account Name: 李四\n"
+        "查询起日Query Starting Date: 2020-01-01 "
+        "查询止日Query Ending Date: 2020-01-31\n"
+        "查询时间Query Time: 2020年12月31日  12:00:00 "
+        "币种Currency: 人民币 CNY\n"
+        "第 1 / 13 页"
+    )
+    with pytest.raises(ValueError, match="无法从文件中提取账户信息"):
+        parser.extract_metadata(iter([caption]))
+
+
+def test_extract_metadata_missing_date(parser: Parser) -> None:
+    """测试提取元数据时缺少日期信息抛出异常."""
+    caption = (
+        "交通银行个人客户交易清单\n"
+        "Bocom Personal Account Details\n"
+        "  支持交通银行手机银行扫码验真\n"
+        "部门Department: 01120123456 柜员Search Teller: EBB0001\n"
+        "打印日期Printing Date: 2020-12-31 12:00:00\n"
+        "账号/卡号Account/Card No: 6222612345678901234 "
+        "户名Account Name: 李四\n"
+        "查询起日Query Starting Date: 2020-01-01\n"
+        "查询时间Query Time: 2020年12月31日  12:00:00 "
+        "币种Currency: 人民币 CNY\n"
+        "第 1 / 13 页"
+    )
+    with pytest.raises(ValueError, match="无法从文件中提取日期信息"):
+        parser.extract_metadata(iter([caption]))
+
+
+def test_extract_metadata_missing_currency(parser: Parser) -> None:
+    """测试提取元数据时缺少币种信息抛出异常."""
+    caption = (
+        "交通银行个人客户交易清单\n"
+        "Bocom Personal Account Details\n"
+        "  支持交通银行手机银行扫码验真\n"
+        "部门Department: 01120123456 柜员Search Teller: EBB0001\n"
+        "打印日期Printing Date: 2020-12-31 12:00:00\n"
+        "账号/卡号Account/Card No: 6222612345678901234 "
+        "户名Account Name: 李四\n"
+        "查询起日Query Starting Date: 2020-01-01 "
+        "查询止日Query Ending Date: 2020-01-31\n"
+        "查询时间Query Time: 2020年12月31日  12:00:00\n"
+        "第 1 / 13 页"
+    )
+    with pytest.raises(ValueError, match="无法从文件中提取币种信息"):
+        parser.extract_metadata(iter([caption]))
+
+
+def test_validate_str_with_none() -> None:
+    """测试 _validate_str 处理 None 值."""
+    result = _validate_str(None)
+    assert result is None
+
+
+def test_validate_str_with_newline_only() -> None:
+    """测试 _validate_str 处理只有换行符的值."""
+    result = _validate_str("\n")
+    assert result is None
+
+
+def test_validate_str_with_newline() -> None:
+    """测试 _validate_str 处理带换行符的值."""
+    result = _validate_str("Hello\nWorld")
+    assert result == "HelloWorld"
+
+
+def test_validate_str_with_normal_value() -> None:
+    """测试 _validate_str 处理普通值."""
+    result = _validate_str("正常内容")
+    assert result == "正常内容"
+
+
+def test_importer_init() -> None:
+    """测试 Importer 初始化."""
+    importer = Importer(account_mapping={}, currency_mapping={})
+    assert importer._Importer__filename_pattern is not None
+    assert importer._Importer__reader is not None
+    assert importer._Importer__parser is not None
