@@ -11,6 +11,7 @@ import pytest
 from beancount import (
     FLAG_OKAY,
     FLAG_WARNING,
+    Balance,
     Close,
     Directive,
     Meta,
@@ -18,6 +19,7 @@ from beancount import (
     Posting,
     Transaction,
 )
+from beancount.core.number import D
 
 from beancount_daoru.hooks.predict_missing_posting import (
     AccountPredictor,
@@ -677,6 +679,79 @@ class TestHistoryIndex:
             results = await index.search(search_txn, n_few_shots=3)
 
         assert len(results) <= 3
+
+    @pytest.mark.asyncio
+    async def test_add_balance_directive_ignored(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """Test Balance directive is ignored (case _ branch)."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        index = HistoryIndex(encoder=encoder, ndim=3)
+
+        open_directive = Open(
+            meta=Meta({}),
+            date=date(2024, 1, 1),
+            account="Assets:Test",
+            currencies=["CNY"],
+            booking=None,
+        )
+        balance_directive = Balance(
+            meta=Meta({}),
+            date=date(2024, 1, 15),
+            account="Assets:Test",
+            amount=D("100.00"),
+            tolerance=None,
+            diff_amount=None,
+        )
+
+        await index.add(open_directive)
+        # Balance 指令不应该抛出异常
+        await index.add(balance_directive)
+        assert "Assets:Test" in index.accounts
+
+    def test_check_transaction_with_warnings_flag(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试 _check_transaction 拒绝带有警告标记的交易."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        index = HistoryIndex(encoder=encoder, ndim=3)
+
+        txn_with_warning = Transaction(
+            date=date(2024, 1, 15),
+            flag="!",
+            narration="Warning transaction",
+            payee=None,
+            links=(),
+            tags=(),
+            meta=Meta({}),
+            postings=[
+                Posting("Assets:Test", None, None, None, None, None),
+                Posting("Expenses:Test", None, None, None, None, None),
+            ],
+        )
+        assert index._check_transaction(txn_with_warning) is False
+
+    def test_check_transaction_with_warning_posting_flag(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试 _check_transaction 拒绝带有警告标记的条目的交易."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        index = HistoryIndex(encoder=encoder, ndim=3)
+
+        txn_with_warning_posting = Transaction(
+            date=date(2024, 1, 15),
+            flag=FLAG_OKAY,
+            narration="Test",
+            payee=None,
+            links=(),
+            tags=(),
+            meta=Meta({}),
+            postings=[
+                Posting("Assets:Test", None, None, None, FLAG_WARNING, None),
+                Posting("Expenses:Test", None, None, None, None, None),
+            ],
+        )
+        assert index._check_transaction(txn_with_warning_posting) is False
 
 
 # ===== ChatBot 测试 =====
@@ -1662,3 +1737,136 @@ class TestTransactionIndexDuplicate:
 
             assert first_call_count == 1
             assert second_call_count == 1
+
+
+# ===== 补充覆盖率测试 =====
+
+
+class TestAdditionalCoverage:
+    """补充覆盖率测试."""
+
+    def test_encoder_close_without_cache(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """Test Encoder.close() without cache attribute."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        # Ensure __cache attribute does not exist (simulate initialization failure)
+        if hasattr(encoder, "_Encoder__cache"):
+            delattr(encoder, "_Encoder__cache")
+        # Should not raise exception
+        encoder.close()
+
+    @pytest.mark.asyncio
+    async def test_history_index_add_check_transaction_false(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试 _HistoryIndex.add 在 _check_transaction 返回 False 时正常处理."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        index = HistoryIndex(encoder=encoder, ndim=3)
+
+        open_directive = Open(
+            meta=Meta({}),
+            date=date(2024, 1, 1),
+            account="Assets:Test",
+            currencies=["CNY"],
+            booking=None,
+        )
+        await index.add(open_directive)
+
+        # 单条目的交易应该被 _check_transaction 拒绝
+        txn = Transaction(
+            date=date(2024, 1, 15),
+            flag=FLAG_OKAY,
+            narration="Single posting",
+            payee=None,
+            links=(),
+            tags=(),
+            meta=Meta({}),
+            postings=[
+                Posting("Assets:Test", None, None, None, None, None),
+            ],
+        )
+        # Should not raise exception, just skip
+        await index.add(txn)
+
+    def test_predictor_check_transaction_with_flag(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """Test AccountPredictor._check_transaction rejects flag='!' transactions."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        chatbot = ChatBot(model_settings=embedding_settings)
+        history_index = HistoryIndex(encoder=encoder, ndim=3)
+        predictor = AccountPredictor(
+            chat_bot=chatbot,
+            index=history_index,
+            extra_system_prompt="",
+        )
+
+        txn = Transaction(
+            date=date(2024, 1, 15),
+            flag="!",
+            narration="Warning transaction",
+            payee=None,
+            links=(),
+            tags=(),
+            meta=Meta({}),
+            postings=[
+                Posting("Assets:Test", None, None, None, None, None),
+            ],
+        )
+        assert predictor._check_transaction(txn) is False
+
+    def test_predictor_check_transaction_with_multiple_postings(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试 AccountPredictor._check_transaction 拒绝多个条目的交易."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        chatbot = ChatBot(model_settings=embedding_settings)
+        history_index = HistoryIndex(encoder=encoder, ndim=3)
+        predictor = AccountPredictor(
+            chat_bot=chatbot,
+            index=history_index,
+            extra_system_prompt="",
+        )
+
+        txn = Transaction(
+            date=date(2024, 1, 15),
+            flag=FLAG_OKAY,
+            narration="Multiple postings",
+            payee=None,
+            links=(),
+            tags=(),
+            meta=Meta({}),
+            postings=[
+                Posting("Assets:Test", None, None, None, None, None),
+                Posting("Expenses:Test", None, None, None, None, None),
+            ],
+        )
+        assert predictor._check_transaction(txn) is False
+
+    def test_predictor_check_transaction_with_warning_posting_flag(
+        self, temp_cache_dir: Path, embedding_settings: EmbeddingModelSettings
+    ) -> None:
+        """测试 AccountPredictor._check_transaction 拒绝有警告标记条目的交易."""
+        encoder = Encoder(model_settings=embedding_settings, cache_dir=temp_cache_dir)
+        chatbot = ChatBot(model_settings=embedding_settings)
+        history_index = HistoryIndex(encoder=encoder, ndim=3)
+        predictor = AccountPredictor(
+            chat_bot=chatbot,
+            index=history_index,
+            extra_system_prompt="",
+        )
+
+        txn = Transaction(
+            date=date(2024, 1, 15),
+            flag=FLAG_OKAY,
+            narration="Test",
+            payee=None,
+            links=(),
+            tags=(),
+            meta=Meta({}),
+            postings=[
+                Posting("Assets:Test", None, None, None, FLAG_WARNING, None),
+            ],
+        )
+        assert predictor._check_transaction(txn) is False
