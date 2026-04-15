@@ -5,6 +5,7 @@
     cpus: 24
   docker:
     image: docker.cnb.cool/ysundy/beancount/beancount-daoru/beancount-daoru:latest
+    # image: docker.cnb.cool/ysundy/beancount/beancount-daoru/dockerfile-caches:3d2fc27c92b1ef6c74e197c018d96e1154e24bd9
     volumes:
       - /opt/models
   before_script:

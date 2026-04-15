@@ -4,7 +4,9 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: "^examples/"
       - id: end-of-file-fixer
+        exclude: "^examples/"
       - id: check-yaml
       - id: check-added-large-files
       - id: check-merge-conflict
@@ -36,12 +38,13 @@ repos:
         additional_dependencies:
           - mdformat-gfm
           - mdformat-frontmatter
-        args: [--wrap, "keep", --number] # 添加 --number 参数
+        args: [--wrap, "keep", --number]
         exclude: |
           (?x)^(
               CHANGELOG.md |
               LICENSE.md
           )$
+
   # # Shell 脚本检查
   # - repo: https://github.com/shellcheck-py/shellcheck-py
   #   rev: v0.11.0.1
@@ -60,25 +63,25 @@ repos:
         # -sr: 重定向操作符后加空格
         # -w: 写入文件
 
-  # 类型检查
+  # 类型检查（使用包装脚本）
   - repo: local
     hooks:
       - id: basedpyright
         name: basedpyright
-        entry: uv run basedpyright --level error src/
+        entry: bash scripts/pre-commit-uv.sh run basedpyright --level error src/
         language: system
         types: [python]
         pass_filenames: false
         always_run: true
         verbose: true
-        stages: [pre-push]  # 只在 pre-push 时运行类型检查
+        stages: [pre-push] # 只在 pre-push 时运行类型检查
 
-  # 检查 uv.lock 是否最新
+  # 检查 uv.lock 是否最新（使用包装脚本）
   - repo: local
     hooks:
       - id: uv-lock-check
         name: uv lock check
-        entry: uv lock --check
+        entry: bash scripts/pre-commit-uv.sh lock --check
         language: system
         pass_filenames: false
         always_run: true
@@ -89,7 +92,7 @@ repos:
     hooks:
       - id: pytest
         name: pytest
-        entry: uv run pytest -m "not llm"
+        entry: bash scripts/pre-commit-uv.sh run pytest -m "not llm"
         language: system
         pass_filenames: false
         always_run: false
