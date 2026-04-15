@@ -19,13 +19,13 @@ echo "=================================="
 
 # 执行构建并记录日志
 docker build --progress=plain \
-  -f .ide/Dockerfile \
-  -t docker.cnb.cool/ysundy/beancount/beancount-daoru/beancount-daoru:v1.0.1 \
-  -t docker.cnb.cool/ysundy/beancount/beancount-daoru/beancount-daoru:latest \
-  . 2>&1 | tee "$LOG_FILE"
+	-f .ide/Dockerfile \
+	-t docker.cnb.cool/ysundy/beancount/beancount-daoru/beancount-daoru:v1.0.1 \
+	-t docker.cnb.cool/ysundy/beancount/beancount-daoru/beancount-daoru:latest \
+	. 2>&1 | tee "$LOG_FILE"
 
 # 提取错误和警告
-grep -E "(ERROR|WARNING|FAILED|Step.*failed)" "$LOG_FILE" > "$ERROR_LOG" 2>/dev/null
+grep -E "(ERROR|WARNING|FAILED|Step.*failed)" "$LOG_FILE" > "$ERROR_LOG" 2> /dev/null
 
 # 显示结果
 echo "=================================="
@@ -37,8 +37,8 @@ echo "=================================="
 # 显示错误数量
 ERROR_COUNT=$(wc -l < "$ERROR_LOG")
 if [ "$ERROR_COUNT" -gt 0 ]; then
-    echo "⚠️  发现 $ERROR_COUNT 条错误/警告"
-    cat "$ERROR_LOG"
+	echo "⚠️  发现 $ERROR_COUNT 条错误/警告"
+	cat "$ERROR_LOG"
 else
-    echo "✅ 没有发现错误"
+	echo "✅ 没有发现错误"
 fi

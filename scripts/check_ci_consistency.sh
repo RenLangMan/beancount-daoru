@@ -7,11 +7,11 @@ echo "🔍 检查 CI 配置一致性..."
 REQUIRED_CHECKS=("ruff" "basedpyright" "markdownlint" "shellcheck" "shfmt")
 
 for check in "${REQUIRED_CHECKS[@]}"; do
-  if grep -q "$check" .cnb.yml; then
-    echo "✅ $check 已在 CI 中配置"
-  else
-    echo "❌ $check 未在 CI 中配置"
-  fi
+	if grep -q "$check" .cnb.yml; then
+		echo "✅ $check 已在 CI 中配置"
+	else
+		echo "❌ $check 未在 CI 中配置"
+	fi
 done
 
 # 检查本地 pre-commit 配置

@@ -86,15 +86,15 @@ git pull
 
 ## 命令速查
 
-| 步骤       | 命令                        | 说明                  |
+| 步骤 | 命令 | 说明 |
 | ---------- | --------------------------- | --------------------- |
-| 安装 uv    | `pip install uv`            | 首次使用              |
-| 设置环境   | `./scripts/dev.sh setup`    | 创建虚拟环境+安装依赖 |
-| 完整流水线 | `./scripts/dev.sh pipeline` | 修复→检查→测试        |
-| 代码检查   | `./scripts/dev.sh check`    | Ruff + 类型检查       |
-| 运行测试   | `./scripts/dev.sh test`     | 运行所有测试          |
-| 查看状态   | `./scripts/dev.sh status`   | 查看环境信息          |
-| 清理缓存   | `./scripts/dev.sh clean`    | 清理临时文件          |
+| 安装 uv | `pip install uv` | 首次使用 |
+| 设置环境 | `./scripts/dev.sh setup` | 创建虚拟环境+安装依赖 |
+| 完整流水线 | `./scripts/dev.sh pipeline` | 修复→检查→测试 |
+| 代码检查 | `./scripts/dev.sh check` | Ruff + 类型检查 |
+| 运行测试 | `./scripts/dev.sh test` | 运行所有测试 |
+| 查看状态 | `./scripts/dev.sh status` | 查看环境信息 |
+| 清理缓存 | `./scripts/dev.sh clean` | 清理临时文件 |
 
 ## 获取帮助
 
