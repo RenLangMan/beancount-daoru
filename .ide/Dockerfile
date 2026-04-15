@@ -162,4 +162,3 @@ RUN echo "=== Tool Versions ===" && \
     echo "uv: $(uv --version)" && \
     echo "Python: $(python --version)" && \
     echo "llama-server: $(llama-server --version 2>&1 | head -n1)" && \
-    echo "===================="
