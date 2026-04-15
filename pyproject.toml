@@ -69,6 +69,7 @@ lint.extend-ignore = ["COM812", "RUF001"]
 convention = "google"
 
 [tool.basedpyright]
+typeCheckingMode = "standard"
 allowedUntypedLibraries = [
     "beangulp",
     "diskcache",
@@ -76,6 +77,8 @@ allowedUntypedLibraries = [
     "pyexcel",
     "usearch",
 ]
+include = ["src"]
+exclude = ["tests", "examples", "scripts"]
 
 # Shell 脚本格式化配置 (shfmt)
 # 文档: https://github.com/mvdan/sh
