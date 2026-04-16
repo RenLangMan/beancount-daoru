@@ -9,9 +9,14 @@ if sys.platform == "win32" and not os.environ.get("PYTHONUTF8"):
     os.environ["PYTHONUTF8"] = "1"
     os.execv(sys.executable, [sys.executable, *sys.argv])  # noqa: S606
 
-import beangulp
+# 自动切换到脚本所在目录, 使 downloads/ 等相对路径正确解析
+from pathlib import Path
 
-from beancount_daoru import (
+os.chdir(Path(__file__).resolve().parent)
+
+import beangulp  # noqa: E402
+
+from beancount_daoru import (  # noqa: E402
     AlipayImporter,
     JDImporter,
     MeituanImporter,

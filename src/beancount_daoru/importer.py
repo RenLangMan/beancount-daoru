@@ -48,6 +48,8 @@ class Extra(NamedTuple):
         source_file: 源文件名。
         row_number: 原始文件中的行号。
         payment_splits: 组合支付的拆分信息列表。
+        trade_no: 交易订单号(用于跨平台去重)。
+        amount: 交易金额。
     """
 
     time: datetime.time | None = None
@@ -62,6 +64,8 @@ class Extra(NamedTuple):
     source_file: str | None = None
     row_number: int | None = None
     payment_splits: list[dict[str, object]] | None = None
+    trade_no: str | None = None
+    amount: Decimal | None = None
 
 
 class Posting(NamedTuple):
@@ -561,6 +565,13 @@ class Importer(beangulp.Importer):
             entries: 待去重的条目列表
             existing: 现有的 Beancount 条目
         """
+        # 交易去重: 基于 trade_no 和时间戳+金额+账户
+        if existing:
+            dedup = Deduplicator(timestamp_window=10)
+            dedup.load_entries(existing)
+            dedup.mark_duplicates(entries)
+
+        # Balance 去重: 同日期保留一条
         balances = sorted(
             (e for e in entries if isinstance(e, beancount.Balance)),
             key=attrgetter("date"),
@@ -766,15 +777,54 @@ class Importer(beangulp.Importer):
         # 提取 include_record_fields 参数
         include_record_fields = meta.pop("include_record_fields", False)
 
+        # 字段名映射: 中文键名 -> 英文/标准键名
+        field_mapping: dict[str, str] = {
+            # 支付宝
+            "交易时间": "datetime",
+            "交易分类": "type",
+            "交易对方": "payee",
+            "对方账号": "payee_account",
+            "商品说明": "narration",
+            "收/支": "dc",
+            "金额": "amount",
+            "收/付款方式": "payment_method",
+            "交易状态": "status",
+            "备注": "remarks",
+            "交易订单号": "trade_no",
+            "商家订单号": "merchant_no",
+            # 京东
+            "商户名称": "payee",
+            "交易说明": "narration",
+            # 微信
+            "交易类型": "type",
+            "商品": "narration",
+            "金额(元)": "amount",
+            "支付方式": "payment_method",
+            "当前状态": "status",
+            "商户单号": "merchant_no",
+            # 美团
+            "交易成功时间": "datetime",
+            "交易创建时间": "datetime_created",
+            "订单标题": "narration",
+            "订单金额": "order_amount",
+            "实付金额": "actual_amount",
+            "交易单号": "trade_no",
+            "商家单号": "merchant_no",
+        }
+
+        excluded_fields: set[str] = {"payee", "narration", "time"}
+
         # 添加原始记录的每个字段作为独立的元数据行
         if include_record_fields:
             for key, value in record.items():
                 if value is not None and str(value).strip():
-                    kvlist[key] = str(value)
+                    mapped_key = field_mapping.get(key, key)
+                    if mapped_key not in excluded_fields:
+                        kvlist[mapped_key] = str(value)
 
         # 添加额外元数据
         for key, value in meta.items():
-            if value is not None:
+            if value is not None and key not in excluded_fields:
                 kvlist[key] = str(value)
 
         return beancount.new_metadata(self.filename(filepath), lineno, kvlist=kvlist)
@@ -829,3 +879,155 @@ class Importer(beangulp.Importer):
             raise KeyError(msg)
         currency = self.__currency_mapping[currency_name]
         return beancount.Amount(number=posting.amount, currency=currency)
+
+
+class Deduplicator:
+    """跨平台交易去重器.
+
+    用于检测新导入的交易是否与现有交易重复,
+    支持 trade_no 精确匹配和时间戳+金额+账户模糊匹配。
+    """
+
+    AMOUNT_TOLERANCE = 0.01
+
+    def __init__(self, timestamp_window: int = 10) -> None:
+        """初始化去重器.
+
+        参数:
+            timestamp_window: 时间戳窗口(秒),默认10秒
+        """
+        self.timestamp_window = timestamp_window
+        self._existing: list[dict[str, object]] = []
+
+    def load_entries(self, entries: beancount.Directives) -> None:
+        """加载已有的 Beancount 条目.
+
+        参数:
+            entries: 现有的 Beancount 条目列表
+        """
+        self._existing = []
+        for entry in entries:
+            if isinstance(entry, beancount.Transaction):
+                tx_info = self._extract_transaction_info(entry)
+                if tx_info:
+                    self._existing.append(tx_info)
+
+    def _extract_transaction_info(
+        self, entry: beancount.Transaction
+    ) -> dict[str, object] | None:
+        """从交易条目中提取去重所需的信息.
+
+        参数:
+            entry: Beancount 交易条目
+
+        返回:
+            包含去重信息的字典,失败返回 None
+        """
+        meta = entry.meta
+        timestamp = meta.get("timestamp")
+        trade_no = meta.get("trade_no")
+        payee_account = meta.get("payee_account")
+        amount_str = meta.get("amount")
+
+        amount: float | None = None
+        if amount_str:
+            with contextlib.suppress(ValueError, TypeError):
+                amount = float(str(amount_str).strip('"'))
+
+        return {
+            "date": entry.date,
+            "timestamp": timestamp,
+            "trade_no": trade_no,
+            "payee_account": payee_account,
+            "amount": amount,
+        }
+
+    def _parse_meta(
+        self, entry: beancount.Transaction
+    ) -> tuple[str | None, int | None, str | None, float | None]:
+        """解析交易元数据.
+
+        返回:
+            (trade_no, timestamp, payee_account, amount) 元组
+        """
+        meta = entry.meta
+        trade_no = meta.get("trade_no")
+        timestamp_str = meta.get("timestamp")
+        payee_account = meta.get("payee_account")
+        amount_str = meta.get("amount")
+
+        amount: float | None = None
+        if amount_str:
+            with contextlib.suppress(ValueError, TypeError):
+                amount = float(str(amount_str).strip('"'))
+
+        timestamp: int | None = None
+        if timestamp_str:
+            with contextlib.suppress(ValueError, TypeError):
+                timestamp = int(timestamp_str)
+
+        return trade_no, timestamp, payee_account, amount
+
+    def _match_by_trade_no(self, trade_no: str | None) -> tuple[bool, str]:
+        """通过 trade_no 精确匹配."""
+        if not (trade_no and str(trade_no).strip() not in ("", "/")):
+            return False, ""
+        for existing in self._existing:
+            if existing.get("trade_no") == trade_no:
+                return True, f"trade_no: {trade_no}"
+        return False, ""
+
+    def _match_by_timestamp(
+        self, timestamp: int, amount: float, payee_account: str | None
+    ) -> tuple[bool, str]:
+        """通过时间戳+金额+账户模糊匹配."""
+        for existing in self._existing:
+            existing_ts = existing.get("timestamp")
+            if existing_ts is None:
+                continue
+            ts_diff = abs(int(existing_ts) - timestamp)  # type: ignore[arg-type]
+            if ts_diff > self.timestamp_window:
+                continue
+            existing_amount = existing.get("amount")
+            if (
+                existing_amount is not None
+                and abs(existing_amount - amount) < self.AMOUNT_TOLERANCE  # type: ignore[arg-type]
+                and existing.get("payee_account") == payee_account
+            ):
+                return True, f"时间戳差{ts_diff}秒, 金额{amount}"
+        return False, ""
+
+    def is_duplicate(self, entry: beancount.Transaction) -> tuple[bool, str]:
+        """检查交易是否与已有交易重复."""
+        trade_no, timestamp, payee_account, amount = self._parse_meta(entry)
+
+        # 1. trade_no 完全匹配(最可靠)
+        is_dup, reason = self._match_by_trade_no(trade_no)
+        if is_dup:
+            return True, reason
+
+        # 2. 时间戳在窗口内 + 金额 + 账户匹配
+        if timestamp is not None and amount is not None:
+            is_dup, reason = self._match_by_timestamp(timestamp, amount, payee_account)
+            if is_dup:
+                return True, reason
+
+        return False, ""
+
+    def mark_duplicates(self, entries: beancount.Directives) -> int:
+        """标记重复交易.
+
+        参数:
+            entries: 待检查的 Beancount 条目列表
+
+        返回:
+            标记的重复交易数量
+        """
+        count = 0
+        for entry in entries:
+            if isinstance(entry, beancount.Transaction):
+                is_dup, reason = self.is_duplicate(entry)
+                if is_dup:
+                    entry.meta[DUPLICATE] = reason
+                    count += 1
+        return count

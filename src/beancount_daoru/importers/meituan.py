@@ -3,6 +3,7 @@
 此模块提供了美团账单文件的导入器,用于将美团交易记录转换为 Beancount 条目。
 """
 
+import contextlib
 import re
 from collections.abc import Iterator
 from datetime import date, datetime
@@ -141,10 +142,19 @@ class Parser(BaseParser):
             ParserError: 当无法识别交易类型或收支类型时抛出
         """
         validated = self.__validator.validate_python(record)
+
+        # 提取日期时间字符串和时间戳
+        raw_datetime_str = record.get("交易成功时间", "")
+        timestamp = None
+        with contextlib.suppress(ValueError, OSError):
+            timestamp = int(validated["交易成功时间"].timestamp())
+
         return Transaction(
             date=validated["交易成功时间"].date(),
             extra=Extra(
                 time=validated["交易成功时间"].time(),
+                datetime_str=raw_datetime_str or None,
+                timestamp=timestamp,
                 dc=validated["收/支"],
                 type=validated["交易类型"],
                 remarks=validated["备注"],

@@ -11,6 +11,7 @@ import pytest
 from beangulp.extract import DUPLICATE
 
 from beancount_daoru.importer import (
+    Deduplicator,
     Extra,
     Importer,
     Metadata,
@@ -801,3 +802,366 @@ class TestParserProtocol:
 
         parser = TestParser()
         assert parser.reversed is False
+
+
+class TestDeduplicator:
+    """测试 Deduplicator 跨平台去重器."""
+
+    def _make_transaction(
+        self,
+        date: datetime.date,
+        timestamp: int | None = None,
+        trade_no: str | None = None,
+        payee_account: str | None = None,
+        amount: float | None = None,
+    ) -> beancount.Transaction:
+        """创建带元数据的模拟交易."""
+        meta: dict[str, object] = {}
+        if timestamp is not None:
+            meta["timestamp"] = str(timestamp)
+        if trade_no is not None:
+            meta["trade_no"] = trade_no
+        if payee_account is not None:
+            meta["payee_account"] = payee_account
+        if amount is not None:
+            meta["amount"] = str(amount)
+
+        return beancount.Transaction(
+            meta=beancount.new_metadata("test.csv", 1, meta),
+            date=date,
+            flag=beancount.FLAG_OKAY,
+            payee="测试商家",
+            narration="测试交易",
+            tags=frozenset(),
+            links=frozenset(),
+            postings=[],
+        )
+
+    def test_init_default_window(self) -> None:
+        """测试默认时间戳窗口."""
+        dedup = Deduplicator()
+        assert dedup.timestamp_window == 10
+
+    def test_init_custom_window(self) -> None:
+        """测试自定义时间戳窗口."""
+        dedup = Deduplicator(timestamp_window=30)
+        assert dedup.timestamp_window == 30
+
+    def test_load_entries_empty(self) -> None:
+        """测试加载空条目列表."""
+        dedup = Deduplicator()
+        dedup.load_entries([])
+        assert dedup._existing == []
+
+    def test_load_entries_with_transaction(self) -> None:
+        """测试加载包含交易的条目列表."""
+        dedup = Deduplicator()
+        tx = self._make_transaction(
+            date=datetime.date(2024, 1, 15),
+            timestamp=1705312200,
+            trade_no="TX123456",
+            payee_account="账户A",
+            amount=100.50,
+        )
+        dedup.load_entries([tx])
+        assert len(dedup._existing) == 1
+        assert dedup._existing[0]["trade_no"] == "TX123456"
+        assert dedup._existing[0]["amount"] == 100.50
+
+    def test_load_entries_ignores_non_transaction(self) -> None:
+        """测试加载时忽略非交易条目."""
+        dedup = Deduplicator()
+        tx = self._make_transaction(date=datetime.date(2024, 1, 15))
+        balance = beancount.Balance(
+            meta=beancount.new_metadata("test.csv", 1),
+            date=datetime.date(2024, 1, 15),
+            account="Assets:Test",
+            amount=beancount.Amount(Decimal("1000.00"), "CNY"),
+            tolerance=None,
+            diff_amount=None,
+        )
+        dedup.load_entries([tx, balance])
+        assert len(dedup._existing) == 1
+
+    def test_is_duplicate_trade_no_match(self) -> None:
+        """测试 trade_no 完全匹配."""
+        dedup = Deduplicator()
+        existing_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 15),
+            trade_no="TX123456",
+        )
+        dedup.load_entries([existing_tx])
+
+        new_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 16),
+            trade_no="TX123456",
+            amount=200.00,
+        )
+        is_dup, reason = dedup.is_duplicate(new_tx)
+        assert is_dup is True
+        assert "TX123456" in reason
+
+    def test_is_duplicate_trade_no_no_match(self) -> None:
+        """测试 trade_no 不匹配."""
+        dedup = Deduplicator()
+        existing_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 15),
+            trade_no="TX123456",
+        )
+        dedup.load_entries([existing_tx])
+
+        new_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 16),
+            trade_no="TX999999",
+        )
+        is_dup, reason = dedup.is_duplicate(new_tx)
+        assert is_dup is False
+        assert reason == ""
+
+    def test_is_duplicate_trade_no_empty(self) -> None:
+        """测试空 trade_no 不进行精确匹配."""
+        dedup = Deduplicator()
+        existing_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 15),
+            trade_no="TX123456",
+        )
+        dedup.load_entries([existing_tx])
+
+        new_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 16),
+            trade_no="",
+            timestamp=1705312200,
+            amount=100.00,
+            payee_account="账户A",
+        )
+        is_dup, _ = dedup.is_duplicate(new_tx)
+        assert is_dup is False
+
+    def test_is_duplicate_trade_no_slash(self) -> None:
+        """测试 trade_no 为斜杠时不进行精确匹配."""
+        dedup = Deduplicator()
+        existing_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 15),
+            trade_no="TX123456",
+        )
+        dedup.load_entries([existing_tx])
+
+        new_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 16),
+            trade_no="/",
+            timestamp=1705312200,
+            amount=100.00,
+            payee_account="账户A",
+        )
+        is_dup, _ = dedup.is_duplicate(new_tx)
+        assert is_dup is False
+
+    def test_is_duplicate_timestamp_within_window(self) -> None:
+        """测试时间戳在窗口内匹配."""
+        dedup = Deduplicator(timestamp_window=10)
+        existing_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 15),
+            timestamp=1705312200,
+            payee_account="账户A",
+            amount=100.00,
+        )
+        dedup.load_entries([existing_tx])
+
+        new_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 15),
+            timestamp=1705312205,  # 差 5 秒
+            payee_account="账户A",
+            amount=100.00,
+        )
+        is_dup, reason = dedup.is_duplicate(new_tx)
+        assert is_dup is True
+        assert "5秒" in reason
+
+    def test_is_duplicate_timestamp_outside_window(self) -> None:
+        """测试时间戳在窗口外不匹配."""
+        dedup = Deduplicator(timestamp_window=10)
+        existing_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 15),
+            timestamp=1705312200,
+            payee_account="账户A",
+            amount=100.00,
+        )
+        dedup.load_entries([existing_tx])
+
+        new_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 15),
+            timestamp=1705312215,  # 差 15 秒
+            payee_account="账户A",
+            amount=100.00,
+        )
+        is_dup, _ = dedup.is_duplicate(new_tx)
+        assert is_dup is False
+
+    def test_is_duplicate_amount_tolerance(self) -> None:
+        """测试金额容差匹配."""
+        dedup = Deduplicator(timestamp_window=10)
+        existing_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 15),
+            timestamp=1705312200,
+            payee_account="账户A",
+            amount=100.00,
+        )
+        dedup.load_entries([existing_tx])
+
+        new_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 15),
+            timestamp=1705312200,
+            payee_account="账户A",
+            amount=100.005,
+        )
+        is_dup, _ = dedup.is_duplicate(new_tx)
+        assert is_dup is True
+
+    def test_is_duplicate_amount_outside_tolerance(self) -> None:
+        """测试金额超出容差不匹配."""
+        dedup = Deduplicator(timestamp_window=10)
+        existing_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 15),
+            timestamp=1705312200,
+            payee_account="账户A",
+            amount=100.00,
+        )
+        dedup.load_entries([existing_tx])
+
+        new_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 15),
+            timestamp=1705312200,
+            payee_account="账户A",
+            amount=100.02,
+        )
+        is_dup, _ = dedup.is_duplicate(new_tx)
+        assert is_dup is False
+
+    def test_is_duplicate_different_account(self) -> None:
+        """测试不同账户不匹配."""
+        dedup = Deduplicator(timestamp_window=10)
+        existing_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 15),
+            timestamp=1705312200,
+            payee_account="账户A",
+            amount=100.00,
+        )
+        dedup.load_entries([existing_tx])
+
+        new_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 15),
+            timestamp=1705312200,
+            payee_account="账户B",
+            amount=100.00,
+        )
+        is_dup, _ = dedup.is_duplicate(new_tx)
+        assert is_dup is False
+
+    def test_is_duplicate_no_timestamp(self) -> None:
+        """测试没有时间戳时不进行模糊匹配."""
+        dedup = Deduplicator(timestamp_window=10)
+        existing_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 15),
+            timestamp=1705312200,
+            payee_account="账户A",
+            amount=100.00,
+        )
+        dedup.load_entries([existing_tx])
+
+        new_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 15),
+            payee_account="账户A",
+            amount=100.00,
+        )
+        is_dup, _ = dedup.is_duplicate(new_tx)
+        assert is_dup is False
+
+    def test_is_duplicate_no_amount(self) -> None:
+        """测试没有金额时不进行模糊匹配."""
+        dedup = Deduplicator(timestamp_window=10)
+        existing_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 15),
+            timestamp=1705312200,
+            payee_account="账户A",
+            amount=100.00,
+        )
+        dedup.load_entries([existing_tx])
+
+        new_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 15),
+            timestamp=1705312200,
+            payee_account="账户A",
+        )
+        is_dup, _ = dedup.is_duplicate(new_tx)
+        assert is_dup is False
+
+    def test_mark_duplicates(self) -> None:
+        """测试标记重复交易."""
+        dedup = Deduplicator()
+        existing_tx = self._make_transaction(
+            date=datetime.date(2024, 1, 15),
+            trade_no="TX123456",
+        )
+        dedup.load_entries([existing_tx])
+
+        new_tx1 = self._make_transaction(
+            date=datetime.date(2024, 1, 16),
+            trade_no="TX123456",
+        )
+        new_tx2 = self._make_transaction(
+            date=datetime.date(2024, 1, 17),
+            trade_no="TX999999",
+        )
+
+        entries = [new_tx1, new_tx2]
+        count = dedup.mark_duplicates(entries)
+
+        assert count == 1
+        assert DUPLICATE in new_tx1.meta
+        assert DUPLICATE not in new_tx2.meta
+
+    def test_mark_duplicates_empty_entries(self) -> None:
+        """测试标记空条目列表."""
+        dedup = Deduplicator()
+        count = dedup.mark_duplicates([])
+        assert count == 0
+
+    def test_extract_transaction_info_with_quoted_amount(self) -> None:
+        """测试提取带引号的金额."""
+        dedup = Deduplicator()
+        tx = beancount.Transaction(
+            meta=beancount.new_metadata(
+                "test.csv", 1, {"amount": '"100.50"', "timestamp": "1705312200"}
+            ),
+            date=datetime.date(2024, 1, 15),
+            flag=beancount.FLAG_OKAY,
+            payee="测试",
+            narration="测试",
+            tags=frozenset(),
+            links=frozenset(),
+            postings=[],
+        )
+
+        info = dedup._extract_transaction_info(tx)
+        assert info is not None
+        assert info["amount"] == 100.50
+
+    def test_extract_transaction_info_invalid_amount(self) -> None:
+        """测试提取无效金额."""
+        dedup = Deduplicator()
+        tx = beancount.Transaction(
+            meta=beancount.new_metadata(
+                "test.csv", 1, {"amount": "invalid", "timestamp": "1705312200"}
+            ),
+            date=datetime.date(2024, 1, 15),
+            flag=beancount.FLAG_OKAY,
+            payee="测试",
+            narration="测试",
+            tags=frozenset(),
+            links=frozenset(),
+            postings=[],
+        )
+
+        info = dedup._extract_transaction_info(tx)
+        assert info is not None
+        assert info["amount"] is None

@@ -169,7 +169,7 @@ $:
 
             # 生成 .env 文件
             if [ ! -f .env ]; then
-              cat > .env << "EOF"
+              cat > .env << 'ENVEOF'
             # .env - 环境配置文件
 
             # ===== UV 配置 =====
@@ -203,7 +203,17 @@ $:
 
             # 上下文大小
             export LLAMA_CONTEXT_SIZE="2048"
-            EOF
+
+            # ===== 虚拟环境自动激活 =====
+            # 在 ~/.zshrc 中添加: source /workspace/.env
+            # 虚拟环境将自动激活（如果不存在则运行 setup）
+            export VENV_PATH="\${PROJECT_ROOT}/.venv"
+            if [ ! -d "$VENV_PATH" ] || [ ! -f "$VENV_PATH/bin/activate" ]; then
+              echo "📦 虚拟环境不存在，正在初始化..."
+              cd "\${PROJECT_ROOT}" && ./scripts/dev.sh setup
+            fi
+            source "$VENV_PATH/bin/activate"
+            ENVEOF
               echo "✅ 已创建 .env"
             else
               echo "⏭️ .env 已存在，跳过创建"

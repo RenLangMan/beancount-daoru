@@ -15,6 +15,7 @@ dependencies = [
     "pyexcel-xlsxr>=0.6.2",
     "pdfplumber>=0.11.8",
     "typing-extensions>=4.15.0",
+    "fava>=1.30.12",
 ]
 requires-python = ">=3.10"
 authors = [{ name = "AN Qi", email = "aqnin@outlook.com" }]

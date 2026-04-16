@@ -3,6 +3,7 @@
 此模块提供了京东账单文件的导入器,用于将京东交易记录转换为 Beancount 条目。
 """
 
+import contextlib
 import re
 from collections.abc import Iterator
 from datetime import date, datetime
@@ -145,10 +146,19 @@ class Parser(BaseParser):
             ParserError: 当无法识别交易类型时抛出
         """
         validated = self.__validator.validate_python(record)
+
+        # 提取日期时间字符串和时间戳
+        raw_datetime_str = record.get("交易时间", "")
+        timestamp = None
+        with contextlib.suppress(ValueError, OSError):
+            timestamp = int(validated["交易时间"].timestamp())
+
         return Transaction(
             date=validated["交易时间"].date(),
             extra=Extra(
                 time=validated["交易时间"].time(),
+                datetime_str=raw_datetime_str or None,
+                timestamp=timestamp,
                 dc=validated["收/支"],
                 status=validated["交易状态"],
                 type=validated["交易分类"],

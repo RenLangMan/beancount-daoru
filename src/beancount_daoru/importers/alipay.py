@@ -280,6 +280,8 @@ class Parser(BaseParser):
                 source_file=source_file,
                 row_number=row_number,
                 payment_splits=payment_splits,
+                trade_no=validated.get("交易订单号"),
+                amount=abs(Decimal(str(record.get("金额", "0")))),
             ),
             payee=validated["交易对方"],
             narration=validated["商品说明"],

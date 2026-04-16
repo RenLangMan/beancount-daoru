@@ -678,7 +678,29 @@ setup_full() {
   sync_deps
   show_status
 
+  # 自动配置 .env 中的虚拟环境路径和自动激活
+  if [ -f ".env" ]; then
+    # 移除旧的虚拟环境配置块
+    sed -i '/^# ===== 虚拟环境自动激活 =====$/,/^fi$/d' .env 2> /dev/null || true
+
+    cat >> .env << 'EOF'
+
+# ===== 虚拟环境自动激活 =====
+# 在 ~/.zshrc 中添加: source /workspace/.env
+# 虚拟环境将自动激活（如果不存在则运行 setup）
+export VENV_PATH="${PROJECT_ROOT}/.venv"
+if [ ! -d "$VENV_PATH" ] || [ ! -f "$VENV_PATH/bin/activate" ]; then
+  echo "📦 虚拟环境不存在，正在初始化..."
+  cd "${PROJECT_ROOT}" && ./scripts/dev.sh setup
+fi
+source "$VENV_PATH/bin/activate"
+EOF
+    print_info "已更新 .env 中的虚拟环境配置"
+  fi
+
   print_success "环境设置完成！"
+  echo
+  print_info "自动激活: 在 ~/.zshrc 中添加: source ${PROJECT_ROOT}/.env"
 }
 
 # CI 流水线：对齐 .cnb.yml 的 Checks + Test
