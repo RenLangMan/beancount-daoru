@@ -14,14 +14,15 @@ from pathlib import Path
 
 os.chdir(Path(__file__).resolve().parent)
 
-import beangulp  # noqa: E402
+import beangulp
 
-from beancount_daoru import (  # noqa: E402
+from beancount_daoru import (
     AlipayImporter,
     JDImporter,
     MeituanImporter,
     PathToName,
     ReorderByImporterName,
+    SortByTimestamp,
     WechatImporter,
 )
 
@@ -95,6 +96,7 @@ CONFIG = [
 ]
 
 HOOKS = [
+    SortByTimestamp(),
     PathToName(),
     ReorderByImporterName(),
 ]

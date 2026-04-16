@@ -26,6 +26,7 @@ if sys.platform == "win32":
 
 from beancount_daoru.hooks.path_to_name import Hook as PathToName
 from beancount_daoru.hooks.reorder_by_importer_name import Hook as ReorderByImporterName
+from beancount_daoru.hooks.sort_by_timestamp import SortByTimestamp
 from beancount_daoru.importers.alipay import Importer as AlipayImporter
 from beancount_daoru.importers.boc import Importer as BOCImporter
 from beancount_daoru.importers.bocom import Importer as BOCOMImporter
@@ -41,6 +42,7 @@ __all__ = [
     "MeituanImporter",
     "PathToName",
     "ReorderByImporterName",
+    "SortByTimestamp",
     "WechatImporter",
 ]
 

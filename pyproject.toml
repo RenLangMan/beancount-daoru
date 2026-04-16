@@ -31,6 +31,9 @@ repository = "https://github.com/aqni/beancount-daoru"
 llm = ["diskcache>=5.6.3", "openai>=2.11.0", "usearch>=2.21.0"]
 fava = ["fava>=1.30"]                                           # 可选依赖
 
+[project.scripts]
+beancount-rebuild = "beancount_daoru.rebuilder.cli:main"
+
 [dependency-groups]
 dev = [
     "pytest>=9.0",
@@ -63,9 +66,10 @@ lint.extend-ignore = ["COM812", "RUF001"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["D", "S101", "S603", "RUF001", "PLR2004", "ANN", "ARG"]  # 测试文件允许使用 magic numbers 和 assert
-"examples/*.py" = ["D", "INP001"]  # 只忽略文档和命名检查
+"examples/*.py" = ["D", "INP001", "E402"]  # chdir before third-party imports
 "tests/**/*.py" = ["ERA001", "SLF001", "INP001"]      # 允许测试文件中的注释
 "scripts/*" = ["T201", "PLC0415", "EXE001", "TRY300", "ISC003", "S603"]  # 脚本允许使用 print, 局部 import, try 中的 return, 显式字符串拼接
+"src/beancount_daoru/rebuilder/*.py" = ["T201", "TRY300", "RUF002", "RUF003"]  # rebuilder 模块允许 print 和全角字符
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
