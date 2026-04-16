@@ -27,18 +27,68 @@ print_title() {
 }
 
 # ==================== 检测操作系统 ====================
-case "$OSTYPE" in
-  msys* | cygwin* | win32* | mingw*)
-    IS_WINDOWS=true
-    VENV_BIN="Scripts"
-    PYTHON_EXE="python.exe"
-    ;;
-  *)
-    IS_WINDOWS=false
-    VENV_BIN="bin"
-    PYTHON_EXE="python"
-    ;;
-esac
+detect_os() {
+  # 默认为 Unix/Linux 系统配置
+  local is_windows=false
+  local venv_bin="bin"
+  local python_exe="python"
+  local os_type="unix"
+
+  case "$OSTYPE" in
+    msys* | cygwin* | win32* | mingw*)
+      is_windows=true
+      venv_bin="Scripts"
+      python_exe="python.exe"
+      os_type="windows"
+      ;;
+    linux*)
+      os_type="linux"
+      python_exe="python3"
+      ;;
+    darwin*)
+      os_type="macos"
+      python_exe="python3"
+      ;;
+    *)
+      # 未识别的操作系统，发出警告并尝试合理回退
+      print_warn "未识别的操作系统类型: '$OSTYPE'，使用默认 Unix 配置"
+      os_type="unknown"
+
+      # 尝试通过 uname 做二次检测
+      if command -v uname &> /dev/null; then
+        case "$(uname -s)" in
+          *CYGWIN*|*MINGW*|*MSYS*)
+            is_windows=true
+            venv_bin="Scripts"
+            python_exe="python.exe"
+            os_type="windows"
+            ;;
+          *Linux*)
+            os_type="linux"
+            python_exe="python3"
+            ;;
+          *Darwin*)
+            os_type="macos"
+            python_exe="python3"
+            ;;
+        esac
+      fi
+      ;;
+  esac
+
+  # 导出为环境变量，供子进程和后续脚本使用
+  export IS_WINDOWS="$is_windows"
+  export VENV_BIN="$venv_bin"
+  export PYTHON_EXE="$python_exe"
+  export OS_TYPE="$os_type"
+
+  # 调试信息（可选，可在 .env 中设置 DEBUG_OS=true 开启）
+  if [ "${DEBUG_OS:-false}" = "true" ]; then
+    print_info "OS detected: OSTYPE=$OSTYPE, OS_TYPE=$OS_TYPE, IS_WINDOWS=$IS_WINDOWS"
+  fi
+}
+
+detect_os
 
 # ==================== 路径设置 ====================
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -53,31 +103,57 @@ if [ -f "${PROJECT_ROOT}/.env" ]; then
   source "${PROJECT_ROOT}/.env"
 fi
 
-# ==================== 查找命令 ====================
+# ==================== 查找命令（带缓存） ====================
+# 缓存变量，避免重复查找
+_UV_CMD=""
+_PYTHON_CMD=""
+
 find_uv_cmd() {
-  if [ -f ".venv/$VENV_BIN/uv" ] || [ -f ".venv/$VENV_BIN/uv.exe" ]; then
-    echo ".venv/$VENV_BIN/uv"
-  elif command -v uv &> /dev/null; then
-    echo "uv"
-  elif [ -n "$UV_PATH" ] && [ -f "$UV_PATH/uv" ]; then
-    echo "$UV_PATH/uv"
-  elif [ -n "$UV_PATH" ] && [ -f "$UV_PATH/uv.exe" ]; then
-    echo "$UV_PATH/uv.exe"
-  else
-    echo ""
+  # 如果已缓存，直接返回
+  if [ -n "$_UV_CMD" ]; then
+    echo "$_UV_CMD"
+    return
   fi
+
+  local result=""
+  if [ -f ".venv/$VENV_BIN/uv" ] || [ -f ".venv/$VENV_BIN/uv.exe" ]; then
+    result=".venv/$VENV_BIN/uv"
+  elif command -v uv &> /dev/null; then
+    result="uv"
+  elif [ -n "$UV_PATH" ] && [ -f "$UV_PATH/uv" ]; then
+    result="$UV_PATH/uv"
+  elif [ -n "$UV_PATH" ] && [ -f "$UV_PATH/uv.exe" ]; then
+    result="$UV_PATH/uv.exe"
+  fi
+
+  _UV_CMD="$result"
+  echo "$result"
 }
 
 find_python_cmd() {
-  if [ -n "$PYTHON_PATH" ] && [ -f "$PYTHON_PATH/$PYTHON_EXE" ]; then
-    echo "$PYTHON_PATH/$PYTHON_EXE"
-  elif command -v python &> /dev/null; then
-    echo "python"
-  elif command -v python3 &> /dev/null; then
-    echo "python3"
-  else
-    echo ""
+  # 如果已缓存，直接返回
+  if [ -n "$_PYTHON_CMD" ]; then
+    echo "$_PYTHON_CMD"
+    return
   fi
+
+  local result=""
+  if [ -n "$PYTHON_PATH" ] && [ -f "$PYTHON_PATH/$PYTHON_EXE" ]; then
+    result="$PYTHON_PATH/$PYTHON_EXE"
+  elif command -v python &> /dev/null; then
+    result="python"
+  elif command -v python3 &> /dev/null; then
+    result="python3"
+  fi
+
+  _PYTHON_CMD="$result"
+  echo "$result"
+}
+
+# 清除命令缓存（用于测试或重新检测）
+clear_cmd_cache() {
+  _UV_CMD=""
+  _PYTHON_CMD=""
 }
 
 # ==================== 虚拟环境管理 ====================
@@ -106,11 +182,7 @@ create_venv() {
 }
 
 activate_venv() {
-  if [ "$IS_WINDOWS" = true ]; then
-    source .venv/Scripts/activate 2> /dev/null || true
-  else
-    source .venv/bin/activate 2> /dev/null || true
-  fi
+  source ".venv/$VENV_BIN/activate" 2> /dev/null || true
 }
 
 recreate_venv() {
@@ -541,12 +613,23 @@ run_precommit() {
 }
 
 # ==================== 环境信息 ====================
+get_os_display_name() {
+  case "$OS_TYPE" in
+    windows) echo "Windows (MSYS/Cygwin/MinGW)" ;;
+    linux) echo "Linux" ;;
+    macos) echo "macOS" ;;
+    unix) echo "Unix" ;;
+    *) echo "$OS_TYPE (未知)" ;;
+  esac
+}
+
 show_status() {
   print_title "当前环境状态"
 
   echo -e "${BLUE}项目信息:${NC}"
   echo "  目录: $PROJECT_ROOT"
-  echo "  操作系统: $([ "$IS_WINDOWS" = true ] && echo "Windows" || echo "Linux")"
+  echo "  操作系统: $(get_os_display_name)"
+  echo "  虚拟环境目录: .venv/$VENV_BIN"
   echo
 
   echo -e "${BLUE}Python 环境:${NC}"
@@ -683,19 +766,21 @@ setup_full() {
     # 移除旧的虚拟环境配置块
     sed -i '/^# ===== 虚拟环境自动激活 =====$/,/^fi$/d' .env 2> /dev/null || true
 
-    cat >> .env << 'EOF'
+    cat >> .env << EOF
 
 # ===== 虚拟环境自动激活 =====
 # 在 ~/.zshrc 中添加: source /workspace/.env
 # 虚拟环境将自动激活（如果不存在则运行 setup）
-export VENV_PATH="${PROJECT_ROOT}/.venv"
-if [ ! -d "$VENV_PATH" ] || [ ! -f "$VENV_PATH/bin/activate" ]; then
-  echo "📦 虚拟环境不存在，正在初始化..."
-  cd "${PROJECT_ROOT}" && ./scripts/dev.sh setup
+export VENV_PATH="\${PROJECT_ROOT}/.venv"
+export VENV_ACTIVATE_DIR="${VENV_BIN}"
+if [ ! -d "\$VENV_PATH" ] || [ ! -f "\$VENV_PATH/\${VENV_ACTIVATE_DIR}/activate" ]; then
+  echo "📦 虚拟环境不存在, 正在初始化..."
+  cd "\${PROJECT_ROOT}" && ./scripts/dev.sh setup
 fi
-source "$VENV_PATH/bin/activate"
+# shellcheck source=/dev/null
+source "\$VENV_PATH/\${VENV_ACTIVATE_DIR}/activate" 2>/dev/null || true
 EOF
-    print_info "已更新 .env 中的虚拟环境配置"
+    print_info "已更新 .env 中的虚拟环境配置 (activate: $VENV_BIN)"
   fi
 
   print_success "环境设置完成！"
