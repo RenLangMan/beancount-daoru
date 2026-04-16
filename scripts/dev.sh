@@ -57,7 +57,7 @@ detect_os() {
       # 尝试通过 uname 做二次检测
       if command -v uname &> /dev/null; then
         case "$(uname -s)" in
-          *CYGWIN*|*MINGW*|*MSYS*)
+          *CYGWIN* | *MINGW* | *MSYS*)
             is_windows=true
             venv_bin="Scripts"
             python_exe="python.exe"
