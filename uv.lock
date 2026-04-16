@@ -101,7 +101,6 @@ name = "beancount-daoru"
 source = { editable = "." }
 dependencies = [
     { name = "beangulp" },
-    { name = "mdformat" },
     { name = "pdfplumber" },
     { name = "pydantic" },
     { name = "pyexcel" },
@@ -125,6 +124,8 @@ dev = [
     { name = "debugpy" },
     { name = "gitpython" },
     { name = "mdformat" },
+    { name = "mdformat-frontmatter" },
+    { name = "mdformat-gfm" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -139,7 +140,6 @@ requires-dist = [
     { name = "beangulp", specifier = ">=0.2,<0.3" },
     { name = "diskcache", marker = "extra == 'llm'", specifier = ">=5.6.3" },
     { name = "fava", marker = "extra == 'fava'", specifier = ">=1.30" },
-    { name = "mdformat", specifier = ">=1.0.0" },
     { name = "openai", marker = "extra == 'llm'", specifier = ">=2.11.0" },
     { name = "pdfplumber", specifier = ">=0.11.8" },
     { name = "pydantic", specifier = ">=2.12" },
@@ -155,7 +155,9 @@ dev = [
     { name = "basedpyright", specifier = ">=1.36.1" },
     { name = "debugpy", specifier = ">=1.8.18" },
     { name = "gitpython", specifier = ">=3.1" },
-    { name = "mdformat", specifier = ">=0.7.19" },
+    { name = "mdformat", specifier = ">=1.0.0" },
+    { name = "mdformat-frontmatter", specifier = ">=2.0" },
+    { name = "mdformat-gfm", specifier = ">=0.3.7" },
     { name = "pre-commit", specifier = ">=4.5.1" },
     { name = "pytest", specifier = ">=9.0" },
     { name = "pytest-asyncio", specifier = ">=0.25.0" },
@@ -1281,6 +1283,47 @@ wheels = [
 ]
 
 [[package]]
+name = "mdformat-frontmatter"
+version = "2.0.10"
+source = { registry = "https://mirrors.cloud.tencent.com/pypi/simple/" }
+dependencies = [
+    { name = "mdformat" },
+    { name = "mdit-py-plugins" },
+    { name = "ruamel-yaml" },
+]
+sdist = { url = "https://mirrors.cloud.tencent.com/pypi/packages/c0/94/ccb15e0535f35c21b2b533cafb232f11ac0e7046dd122029b7ec0513c82e/mdformat_frontmatter-2.0.10.tar.gz", hash = "sha256:decefcb4beb66cf111f17e8c0d82e60b208104c7922ec09564d05365db551bd8" }
+wheels = [
+    { url = "https://mirrors.cloud.tencent.com/pypi/packages/ea/40/e61f8ed549bed3159a9677eadb89849ccca6de30eb90bf61e1b6026df96d/mdformat_frontmatter-2.0.10-py3-none-any.whl", hash = "sha256:c99f7c52de0403e39f48b6a1c2bb79a4c8ce69304a799ff0e403e3957aa3669b" },
+]
+
+[[package]]
+name = "mdformat-gfm"
+version = "1.0.0"
+source = { registry = "https://mirrors.cloud.tencent.com/pypi/simple/" }
+dependencies = [
+    { name = "markdown-it-py" },
+    { name = "mdformat" },
+    { name = "mdit-py-plugins" },
+    { name = "wcwidth" },
+]
+sdist = { url = "https://mirrors.cloud.tencent.com/pypi/packages/56/6f/a626ebb142a290474401b67e2d61e73ce096bf7798ee22dfe6270f924b3f/mdformat_gfm-1.0.0.tar.gz", hash = "sha256:d1d49a409a6acb774ce7635c72d69178df7dce1dc8cdd10e19f78e8e57b72623" }
+wheels = [
+    { url = "https://mirrors.cloud.tencent.com/pypi/packages/e6/18/6bc2189b744dd383cad03764f41f30352b1278d2205096f77a29c0b327ad/mdformat_gfm-1.0.0-py3-none-any.whl", hash = "sha256:7305a50efd2a140d7c83505b58e3ac5df2b09e293f9bbe72f6c7bee8c678b005" },
+]
+
+[[package]]
+name = "mdit-py-plugins"
+version = "0.5.0"
+source = { registry = "https://mirrors.cloud.tencent.com/pypi/simple/" }
+dependencies = [
+    { name = "markdown-it-py" },
+]
+sdist = { url = "https://mirrors.cloud.tencent.com/pypi/packages/b2/fd/a756d36c0bfba5f6e39a1cdbdbfdd448dc02692467d83816dff4592a1ebc/mdit_py_plugins-0.5.0.tar.gz", hash = "sha256:f4918cb50119f50446560513a8e311d574ff6aaed72606ddae6d35716fe809c6" }
+wheels = [
+    { url = "https://mirrors.cloud.tencent.com/pypi/packages/fb/86/dd6e5db36df29e76c7a7699123569a4a18c1623ce68d826ed96c62643cae/mdit_py_plugins-0.5.0-py3-none-any.whl", hash = "sha256:07a08422fc1936a5d26d146759e9155ea466e842f5ab2f7d2266dd084c8dab1f" },
+]
+
+[[package]]
 name = "mdurl"
 version = "0.1.2"
 source = { registry = "https://mirrors.cloud.tencent.com/pypi/simple/" }
@@ -2201,6 +2244,15 @@ wheels = [
 ]
 
 [[package]]
+name = "ruamel-yaml"
+version = "0.19.1"
+source = { registry = "https://mirrors.cloud.tencent.com/pypi/simple/" }
+sdist = { url = "https://mirrors.cloud.tencent.com/pypi/packages/c7/3b/ebda527b56beb90cb7652cb1c7e4f91f48649fbcd8d2eb2fb6e77cd3329b/ruamel_yaml-0.19.1.tar.gz", hash = "sha256:53eb66cd27849eff968ebf8f0bf61f46cdac2da1d1f3576dd4ccee9b25c31993" }
+wheels = [
+    { url = "https://mirrors.cloud.tencent.com/pypi/packages/b8/0c/51f6841f1d84f404f92463fc2b1ba0da357ca1e3db6b7fbda26956c3b82a/ruamel_yaml-0.19.1-py3-none-any.whl", hash = "sha256:27592957fedf6e0b62f281e96effd28043345e0e66001f97683aa9a40c667c93" },
+]
+
+[[package]]
 name = "ruff"
 version = "0.15.9"
 source = { registry = "https://mirrors.cloud.tencent.com/pypi/simple/" }
@@ -2702,6 +2754,15 @@ wheels = [
     { url = "https://mirrors.cloud.tencent.com/pypi/packages/bd/95/615e72cd27b85b61eec764a5ca51bd94d40b5adea5ff47567d9ebc4d275a/watchfiles-1.1.1-pp311-pypy311_pp73-macosx_11_0_arm64.whl", hash = "sha256:89eef07eee5e9d1fda06e38822ad167a044153457e6fd997f8a858ab7564a336" },
     { url = "https://mirrors.cloud.tencent.com/pypi/packages/c9/81/e7fe958ce8a7fb5c73cc9fb07f5aeaf755e6aa72498c57d760af760c91f8/watchfiles-1.1.1-pp311-pypy311_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ce19e06cbda693e9e7686358af9cd6f5d61312ab8b00488bc36f5aabbaf77e24" },
     { url = "https://mirrors.cloud.tencent.com/pypi/packages/6e/d4/ed38dd3b1767193de971e694aa544356e63353c33a85d948166b5ff58b9e/watchfiles-1.1.1-pp311-pypy311_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3e6f39af2eab0118338902798b5aa6664f46ff66bc0280de76fca67a7f262a49" },
+]
+
+[[package]]
+name = "wcwidth"
+version = "0.6.0"
+source = { registry = "https://mirrors.cloud.tencent.com/pypi/simple/" }
+sdist = { url = "https://mirrors.cloud.tencent.com/pypi/packages/35/a2/8e3becb46433538a38726c948d3399905a4c7cabd0df578ede5dc51f0ec2/wcwidth-0.6.0.tar.gz", hash = "sha256:cdc4e4262d6ef9a1a57e018384cbeb1208d8abbc64176027e2c2455c81313159" }
+wheels = [
+    { url = "https://mirrors.cloud.tencent.com/pypi/packages/68/5a/199c59e0a824a3db2b89c5d2dade7ab5f9624dbf6448dc291b46d5ec94d3/wcwidth-0.6.0-py3-none-any.whl", hash = "sha256:1a3a1e510b553315f8e146c54764f4fb6264ffad731b3d78088cdb1478ffbdad" },
 ]
 
 [[package]]

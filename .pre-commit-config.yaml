@@ -32,7 +32,7 @@ repos:
 
   # Markdown 格式化 (mdformat)
   - repo: https://github.com/executablebooks/mdformat
-    rev: 0.7.19
+    rev: 1.0.0
     hooks:
       - id: mdformat
         additional_dependencies:

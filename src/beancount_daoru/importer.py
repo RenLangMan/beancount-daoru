@@ -4,22 +4,29 @@
 它负责将记录转换为 Beancount 交易、账户映射、货币转换以及与 Beangulp 框架的集成。
 """
 
+from __future__ import annotations
+
+import contextlib
 import datetime
-from collections.abc import Iterable, Iterator, Mapping
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from decimal import Decimal
 from functools import lru_cache
 from itertools import groupby
 from operator import attrgetter
 from pathlib import Path
-from re import Pattern
-from typing import NamedTuple, Protocol
+from typing import TYPE_CHECKING, NamedTuple, Protocol
 
 import beancount
 import beangulp
 from beangulp.extract import DUPLICATE
 from typing_extensions import TypedDict, Unpack, override
 
-from beancount_daoru.reader import Reader
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator, Mapping
+    from re import Pattern
+
+    from beancount_daoru.reader import Reader
 
 
 class Extra(NamedTuple):
@@ -36,6 +43,11 @@ class Extra(NamedTuple):
         status: 交易状态(例如:成功、处理中、失败)。
         place: 交易地点或场所。
         remarks: 关于交易的额外备注或说明。
+        datetime_str: 原始日期时间字符串(例如:"2023-02-12 21:32:14")。
+        timestamp: Unix 时间戳(秒),用于精确排序同一日期内的多笔交易。
+        source_file: 源文件名。
+        row_number: 原始文件中的行号。
+        payment_splits: 组合支付的拆分信息列表。
     """
 
     time: datetime.time | None = None
@@ -45,6 +57,11 @@ class Extra(NamedTuple):
     status: str | None = None
     place: str | None = None
     remarks: str | None = None
+    datetime_str: str | None = None
+    timestamp: int | None = None
+    source_file: str | None = None
+    row_number: int | None = None
+    payment_splits: list[dict[str, object]] | None = None
 
 
 class Posting(NamedTuple):
@@ -134,6 +151,15 @@ class Parser(Protocol):
         """
         return False
 
+    @property
+    def file_patterns(self) -> tuple[str, ...]:
+        """文件匹配模式.
+
+        返回:
+            支持的文件名模式元组,支持通配符。
+        """
+        return ()
+
     def extract_metadata(self, texts: Iterator[str]) -> Metadata:
         """从文本迭代器中提取元数据.
 
@@ -147,6 +173,22 @@ class Parser(Protocol):
             包含提取信息的元数据对象。
         """
         ...
+
+    def validate_file(self, filepath: str) -> bool:
+        """验证文件是否为有效的数据源.
+
+        通过读取文件头部验证文件格式是否符合预期。
+        此方法会读取文件的前几行进行验证,不会影响后续的完整读取。
+
+        参数:
+            filepath: 文件路径
+
+        返回:
+            如果文件有效返回 True,否则返回 False。
+        """
+        path = Path(filepath)
+        # 检查文件扩展名
+        return path.suffix.lower() in (".csv", ".xlsx", ".xls")
 
     def parse(self, record: dict[str, str]) -> Transaction:
         """将单条交易记录解析为 Beancount 兼容结构.
@@ -164,6 +206,219 @@ class Parser(Protocol):
             包含解析后数据的 Transaction 对象,格式与 Beancount 兼容。
         """
         ...
+
+
+@dataclass(frozen=True)
+class BankFieldConfig:
+    """银行账单字段配置.
+
+    用于配置不同银行账单文件的字段映射关系。
+    """
+
+    # 文件匹配模式
+    file_patterns: tuple[str, ...] = ()
+    # 文件编码
+    encoding: str = "gbk"
+    # 表头跳过行数
+    header_rows: int = 0
+
+    # 字段名配置
+    date_field: str = "交易日期"
+    amount_field: str = "交易金额"
+    balance_field: str | None = None
+    payee_field: str = "对方户名"
+    description_field: str | None = None
+    channel_field: str | None = None  # 交易渠道
+    dc_field: str | None = None  # 借贷标志
+    currency_field: str | None = None
+    trade_no_field: str | None = None  # 流水号
+
+    # 借贷标志映射 (某些银行用符号表示)  # noqa: ERA001
+    dc_mapping: dict[str, str] = field(
+        default_factory=lambda: {"借": "支出", "贷": "收入"}
+    )
+
+
+# 常用银行配置预定义
+PREDEFINED_BANK_CONFIGS: dict[str, BankFieldConfig] = {}
+
+
+class ConfigurableParser(ABC):
+    """配置驱动的银行账单解析器基类.
+
+    通过 BankFieldConfig 配置支持不同银行的字段映射,
+    适用于字段名差异大、需要灵活配置的银行账单。
+    """
+
+    # 子类应覆盖此配置
+    bank_config: BankFieldConfig | None = None
+
+    @property
+    def field_config(self) -> BankFieldConfig:
+        """获取字段配置."""
+        if self.bank_config is None:
+            msg = "子类必须定义 bank_config 属性"
+            raise NotImplementedError(msg)
+        return self.bank_config
+
+    @property
+    def reversed(self) -> bool:
+        """记录是否为逆时间顺序."""
+        return True
+
+    @property
+    def file_patterns(self) -> tuple[str, ...]:
+        """文件匹配模式."""
+        return self.field_config.file_patterns
+
+    @abstractmethod
+    def extract_metadata(self, texts: Iterator[str]) -> Metadata:
+        """从文本迭代器中提取元数据."""
+        ...
+
+    def validate_file(self, filepath: str) -> bool:
+        """验证文件是否为有效的银行账单."""
+        path = Path(filepath)
+        return path.suffix.lower() in (".csv", ".xlsx", ".xls")
+
+    def get_field(self, record: dict[str, str], field_name: str | None) -> str | None:
+        """从记录中获取字段值.
+
+        参数:
+            record: 交易记录字典
+            field_name: 字段名
+
+        返回:
+            字段值,如果字段不存在返回 None
+        """
+        if field_name is None:
+            return None
+        value = record.get(field_name)
+        if isinstance(value, str):
+            return value.strip() or None
+        return str(value) if value is not None else None
+
+    def get_decimal(
+        self, record: dict[str, str], field_name: str | None
+    ) -> Decimal | None:
+        """从记录中获取金额值.
+
+        参数:
+            record: 交易记录字典
+            field_name: 字段名
+
+        返回:
+            Decimal 金额值,如果无效返回 None
+        """
+        value = self.get_field(record, field_name)
+        if value is None:
+            return None
+        try:
+            return Decimal(value.replace(",", ""))
+        except Exception:  # noqa: BLE001
+            return None
+
+    def get_date(
+        self, record: dict[str, str], field_name: str | None
+    ) -> datetime.date | None:
+        """从记录中获取日期值.
+
+        参数:
+            record: 交易记录字典
+            field_name: 字段名
+
+        返回:
+            date 对象,如果无效返回 None
+        """
+        value = self.get_field(record, field_name)
+        if value is None:
+            return None
+        # 尝试多种日期格式
+        for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y%m%d", "%d/%m/%Y"):
+            with contextlib.suppress(ValueError):
+                return datetime.datetime.strptime(value[:10], fmt).date()  # noqa: DTZ007
+        return None
+
+    def parse_dc(self, record: dict[str, str]) -> str | None:
+        """解析借贷方向.
+
+        参数:
+            record: 交易记录字典
+
+        返回:
+            "支出" 或 "收入",如果无法确定返回 None
+        """
+        dc_field = self.field_config.dc_field
+        if dc_field is None:
+            return None
+
+        dc_value = self.get_field(record, dc_field)
+        if dc_value is None:
+            return None
+
+        return self.field_config.dc_mapping.get(dc_value)
+
+    def parse_amount(self, record: dict[str, str]) -> tuple[Decimal, str] | None:
+        """解析金额和方向.
+
+        参数:
+            record: 交易记录字典
+
+        返回:
+            (金额, 方向) 元组,如果无效返回 None
+        """
+        amount = self.get_decimal(record, self.field_config.amount_field)
+        if amount is None:
+            return None
+
+        dc = self.parse_dc(record)
+        if dc == "支出":
+            return -abs(amount), dc
+        if dc == "收入":
+            return abs(amount), dc
+        # 默认: 负数为支出,正数为收入
+        return (amount, "支出" if amount < 0 else "收入")
+
+    def parse(self, record: dict[str, str]) -> Transaction:
+        """解析单条交易记录.
+
+        子类可覆盖此方法以自定义解析逻辑。
+
+        参数:
+            record: 原始交易记录字典
+
+        返回:
+            转换后的 Transaction 对象
+        """
+        amount_info = self.parse_amount(record)
+        if amount_info is None:
+            raise ParserError(self.field_config.amount_field)
+
+        amount, dc = amount_info
+
+        return Transaction(
+            date=self.get_date(record, self.field_config.date_field)
+            or datetime.date.today(),  # noqa: DTZ011
+            extra=Extra(
+                dc=dc,
+                type=self.get_field(record, self.field_config.channel_field),
+                payee_account=self.get_field(record, self.field_config.trade_no_field),
+            ),
+            payee=self.get_field(record, self.field_config.payee_field),
+            narration=self.get_field(record, self.field_config.description_field),
+            postings=(
+                Posting(
+                    amount=abs(amount),
+                    currency=self.get_field(record, self.field_config.currency_field),
+                ),
+            ),
+            balance=Posting(
+                amount=self.get_decimal(record, self.field_config.balance_field)
+                or Decimal(0),
+            )
+            if self.field_config.balance_field
+            else None,
+        )
 
 
 class ImporterKwargs(TypedDict):
@@ -320,22 +575,73 @@ class Importer(beangulp.Importer):
                 balance.meta[DUPLICATE] = target
 
     @override
-    def sort(self, entries: beancount.Directives, reverse: bool = False) -> None:
+    def sort(
+        self,
+        entries: beancount.Directives,
+        reverse: bool = False,
+        by_timestamp: bool = False,
+    ) -> None:
         """对条目进行排序.
 
         参数:
             entries: 待排序的条目列表
             reverse: 是否反向排序
+            by_timestamp: 是否按日期+时间戳排序(跨文件场景)
         """
 
         def sort_key(entry: beancount.Directive) -> tuple[int, int]:
             lineno = entry.meta["lineno"]  # pyright: ignore[reportAny]
+            if by_timestamp and isinstance(entry, beancount.Transaction):
+                # 按日期 + timestamp 排序
+                ts = entry.meta.get("timestamp")
+                ts_key = ts if ts is not None else 0
+                return (entry.date.toordinal(), ts_key)
             return (
                 self._lineno_key(lineno),  # pyright: ignore[reportAny]
                 0 if isinstance(entry, beancount.Transaction) else 1,
             )
 
         entries.sort(key=sort_key, reverse=reverse)
+
+    @staticmethod
+    def sort_entries_by_timestamp(
+        entries: beancount.Directives, *, reverse: bool = False
+    ) -> None:
+        """对条目按日期+时间戳全局排序(跨文件场景).
+
+        此方法用于多个文件合并后的全局排序,按日期升序,
+        同一天内按 timestamp 升序。
+
+        参数:
+            entries: 待排序的条目列表
+            reverse: 是否反向排序
+
+        示例:
+            >>> from beancount_daoru.importer import Importer
+            >>> all_entries = []
+            >>> for importer in importers:
+            ...     all_entries.extend(importer.extract(filepath, []))
+            >>> Importer.sort_entries_by_timestamp(all_entries)
+        """
+        transactions: list[beancount.Transaction] = []
+        others: list[beancount.Directive] = []
+
+        for entry in entries:
+            if isinstance(entry, beancount.Transaction):
+                transactions.append(entry)
+            else:
+                others.append(entry)
+
+        def tx_key(entry: beancount.Transaction) -> tuple[int, int]:
+            ts = entry.meta.get("timestamp")
+            try:
+                ts_key = int(ts) if ts is not None else 0
+            except (ValueError, TypeError):
+                ts_key = 0
+            return (entry.date.toordinal(), ts_key)
+
+        transactions.sort(key=tx_key, reverse=reverse)
+        entries[:] = transactions + others
 
     def _lineno_key(self, lineno: int) -> int:
         """生成行号排序键.
@@ -405,6 +711,7 @@ class Importer(beangulp.Importer):
                 filepath,
                 lineno,
                 record,
+                include_record_fields=True,
                 **transaction.extra._asdict(),  # pyright: ignore[reportAny]
             ),
             date=transaction.date,
@@ -449,23 +756,28 @@ class Importer(beangulp.Importer):
             filepath: 文件路径
             lineno: 行号
             record: 原始记录
-            **meta: 额外的元数据
+            **meta: 额外的元数据,包含 include_record_fields 和其他元数据
 
         返回:
             元数据字典
         """
-        return beancount.new_metadata(
-            self.filename(filepath),
-            lineno,
-            kvlist={
-                key: str(value)
-                for key, value in {
-                    "__source__": str(record),
-                    **meta,
-                }.items()
-                if value is not None
-            },
-        )
+        kvlist: dict[str, str] = {}
+
+        # 提取 include_record_fields 参数
+        include_record_fields = meta.pop("include_record_fields", False)
+
+        # 添加原始记录的每个字段作为独立的元数据行
+        if include_record_fields:
+            for key, value in record.items():
+                if value is not None and str(value).strip():
+                    kvlist[key] = str(value)
+
+        # 添加额外元数据
+        for key, value in meta.items():
+            if value is not None:
+                kvlist[key] = str(value)
+
+        return beancount.new_metadata(self.filename(filepath), lineno, kvlist=kvlist)
 
     def _analyse_account(
         self,

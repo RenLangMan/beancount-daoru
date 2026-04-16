@@ -41,15 +41,15 @@ main:
 
 ## 环境变量
 
-| 变量 | 说明 | 必需 |
+| 变量                    | 说明            | 必需         |
 | ----------------------- | --------------- | ------------ |
-| CNB_REPO_SLUG_LOWERCASE | 仓库路径小写 | 是（生产版） |
-| CNB_DOCKER_REGISTRY | Docker 仓库地址 | 否 |
-| CNB_COMMIT_SHORT | Commit SHA | 否 |
-| CNB_BRANCH | 分支名 | 否 |
-| CNB_DEFAULT_BRANCH | 默认分支 | 否 |
-| CNB_IS_TAG | 是否 Tag | 否 |
-| CI | CI 环境标识 | 否 |
+| CNB_REPO_SLUG_LOWERCASE | 仓库路径小写    | 是（生产版） |
+| CNB_DOCKER_REGISTRY     | Docker 仓库地址 | 否           |
+| CNB_COMMIT_SHORT        | Commit SHA      | 否           |
+| CNB_BRANCH              | 分支名          | 否           |
+| CNB_DEFAULT_BRANCH      | 默认分支        | 否           |
+| CNB_IS_TAG              | 是否 Tag        | 否           |
+| CI                      | CI 环境标识     | 否           |
 
 ## 日志
 

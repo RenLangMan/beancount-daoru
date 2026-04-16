@@ -253,7 +253,7 @@ run_uvlock_check() {
 
 run_basedpyright() {
   print_step "Basedpyright 类型检查..."
-  uv sync --extra llm --group dev
+  uv sync --all-extras --group dev --link-mode=copy
   if uv run basedpyright --version &> /dev/null; then
     uv run basedpyright --verbose
     print_success "类型检查通过"
@@ -331,8 +331,8 @@ run_unit_tests() {
     args=("--verbose" "-m" "not llm")
   fi
 
-  print_step "同步依赖（llm extra）..."
-  uv sync --extra llm --group dev
+  print_step "同步依赖..."
+  uv sync --all-extras --group dev --link-mode=copy
 
   if uv run pytest --version &> /dev/null; then
     uv run pytest "${args[@]}"
@@ -366,8 +366,8 @@ run_llm_tests() {
     return 0
   fi
 
-  print_step "同步依赖（llm extra）..."
-  uv sync --extra llm --group dev
+  print_step "同步依赖..."
+  uv sync --all-extras --group dev --link-mode=copy
 
   if uv run pytest --version &> /dev/null; then
     uv run pytest "${args[@]}"
@@ -387,8 +387,8 @@ run_all_tests() {
     args=("--verbose")
   fi
 
-  print_step "同步依赖（llm extra）..."
-  uv sync --extra llm --group dev
+  print_step "同步依赖..."
+  uv sync --all-extras --group dev --link-mode=copy
 
   if uv run pytest --version &> /dev/null; then
     uv run pytest "${args[@]}"
@@ -402,8 +402,8 @@ run_all_tests() {
 run_tests_with_coverage() {
   print_title "运行测试（带覆盖率，不含 LLM）"
 
-  print_step "同步依赖（llm extra）..."
-  uv sync --extra llm --group dev
+  print_step "同步依赖..."
+  uv sync --all-extras --group dev --link-mode=copy
 
   if uv run pytest --cov --version &> /dev/null; then
     uv run pytest --cov=src --cov-report=term --cov-report=html --cov-report=xml -v -m "not llm"
@@ -426,7 +426,7 @@ run_specific_test() {
   fi
 
   print_step "运行测试: $test_path"
-  uv sync --extra llm --group dev
+  uv sync --all-extras --group dev --link-mode=copy
   uv run pytest "$test_path" -v
 }
 
@@ -747,7 +747,7 @@ run_ci_pipeline() {
 
   # Basedpyright
   print_step "Basedpyright 类型检查..."
-  uv sync --extra llm --group dev
+  uv sync --all-extras --group dev --link-mode=copy
   if uv run basedpyright --version &> /dev/null; then
     if ! uv run basedpyright; then
       print_error "类型检查失败"
@@ -761,7 +761,7 @@ run_ci_pipeline() {
 
   # 单元测试
   print_step "单元测试（-m 'not llm'）..."
-  uv sync --extra llm --group dev
+  uv sync --all-extras --group dev --link-mode=copy
   if ! uv run pytest --verbose -m "not llm"; then
     print_error "单元测试失败"
     has_error=1

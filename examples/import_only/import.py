@@ -1,3 +1,14 @@
+import os
+import sys
+
+# Windows 编码兼容: 确保 Python 以 UTF-8 模式运行,
+# 避免 ¥ 等特殊字符在 GBK 控制台/文件上导致 UnicodeEncodeError。
+# PYTHONUTF8 必须在解释器启动时设置才对 click.File 等生效,
+# 因此如果未设置则自动重启自身。
+if sys.platform == "win32" and not os.environ.get("PYTHONUTF8"):
+    os.environ["PYTHONUTF8"] = "1"
+    os.execv(sys.executable, [sys.executable, *sys.argv])  # noqa: S606
+
 import beangulp
 
 from beancount_daoru import (

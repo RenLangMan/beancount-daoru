@@ -399,6 +399,93 @@ class TestImporterSort:
             assert entries[i].meta["lineno"] >= entries[i + 1].meta["lineno"]
 
 
+class TestImporterSortEntriesByTimestamp:
+    """测试 sort_entries_by_timestamp 全局排序方法."""
+
+    def test_sort_entries_by_timestamp(self) -> None:
+        """测试全局按日期+时间戳排序."""
+        entries: list[beancount.Directive] = []
+
+        # 2025-09-01 第一笔
+        tx1 = beancount.Transaction(
+            meta=beancount.new_metadata("test1.csv", 1, {"timestamp": "1756695500"}),
+            date=datetime.date(2025, 9, 1),
+            flag=beancount.FLAG_OKAY,
+            payee="商家A",
+            narration="购物",
+            tags=frozenset(),
+            links=frozenset(),
+            postings=[],
+        )
+        entries.append(tx1)
+
+        # 2025-09-02
+        tx2 = beancount.Transaction(
+            meta=beancount.new_metadata("test2.csv", 1, {"timestamp": "1756742400"}),
+            date=datetime.date(2025, 9, 2),
+            flag=beancount.FLAG_OKAY,
+            payee="商家B",
+            narration="购物",
+            tags=frozenset(),
+            links=frozenset(),
+            postings=[],
+        )
+        entries.append(tx2)
+
+        # 2025-09-01 第二笔 (timestamp 更小)
+        tx3 = beancount.Transaction(
+            meta=beancount.new_metadata("test3.csv", 1, {"timestamp": "1756695436"}),
+            date=datetime.date(2025, 9, 1),
+            flag=beancount.FLAG_OKAY,
+            payee="中国电信",
+            narration="话费充值",
+            tags=frozenset(),
+            links=frozenset(),
+            postings=[],
+        )
+        entries.append(tx3)
+
+        # 按日期+时间戳排序
+        Importer.sort_entries_by_timestamp(entries)
+
+        # 验证排序结果: 2025-09-01 中国电信 -> 2025-09-01 商家A -> 2025-09-02 商家B
+        assert entries[0].payee == "中国电信"
+        assert entries[1].payee == "商家A"
+        assert entries[2].payee == "商家B"
+
+    def test_sort_entries_preserves_non_transactions(self) -> None:
+        """测试排序保留非交易条目."""
+        entries: list[beancount.Directive] = []
+
+        tx = beancount.Transaction(
+            meta=beancount.new_metadata("test.csv", 1, {"timestamp": "1756695436"}),
+            date=datetime.date(2025, 9, 1),
+            flag=beancount.FLAG_OKAY,
+            payee="测试",
+            narration="测试",
+            tags=frozenset(),
+            links=frozenset(),
+            postings=[],
+        )
+        entries.append(tx)
+
+        balance = beancount.Balance(
+            meta=beancount.new_metadata("test.csv", 2),
+            date=datetime.date(2025, 9, 2),
+            account="Assets:Test",
+            amount=beancount.Amount(Decimal("100.00"), "CNY"),
+            tolerance=None,
+            diff_amount=None,
+        )
+        entries.append(balance)
+
+        Importer.sort_entries_by_timestamp(entries)
+
+        # 交易应该在前面,其他条目在后面
+        assert isinstance(entries[0], beancount.Transaction)
+        assert isinstance(entries[1], beancount.Balance)
+
+
 class TestImporterLinenoKey:
     """测试 _lineno_key 方法."""
 
@@ -577,11 +664,15 @@ class TestImporterBuildMeta:
         test_file.touch()
 
         meta = importer._build_meta(
-            str(test_file), 10, {"key": "value"}, error="test error"
+            str(test_file),
+            10,
+            {"bank_csv_lines": "ABC123"},
+            include_record_fields=True,
+            error="test error",
         )
 
         assert "lineno" in meta
-        assert meta["__source__"] == "{'key': 'value'}"
+        assert meta["bank_csv_lines"] == "ABC123"
         assert meta["error"] == "test error"
 
     def test_build_meta_filters_none(
@@ -593,9 +684,32 @@ class TestImporterBuildMeta:
         test_file = tmp_path / "test.csv"
         test_file.touch()
 
-        meta = importer._build_meta(str(test_file), 10, {"key": "value"}, error=None)
+        meta = importer._build_meta(
+            str(test_file), 10, {"key": "value"}, error=None, empty_field=None
+        )
 
         assert "error" not in meta
+        assert "empty_field" not in meta
+
+    def test_build_meta_include_record_fields(
+        self,
+        importer: Importer,
+        tmp_path: Path,
+    ) -> None:
+        """测试包含原始记录字段."""
+        test_file = tmp_path / "test.csv"
+        test_file.touch()
+
+        # 默认不包含记录字段
+        meta = importer._build_meta(str(test_file), 10, {"bank_csv_lines": "ABC123"})
+        assert "bank_csv_lines" not in meta
+
+        # 启用后包含记录字段
+        meta = importer._build_meta(
+            str(test_file), 10, {"bank_csv_lines": "ABC123"}, include_record_fields=True
+        )
+        assert meta["bank_csv_lines"] == "ABC123"
+        assert "lineno" in meta
 
 
 class TestImporterAnalyseAccount:
