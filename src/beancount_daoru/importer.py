@@ -416,12 +416,14 @@ class ConfigurableParser(ABC):
                     currency=self.get_field(record, self.field_config.currency_field),
                 ),
             ),
-            balance=Posting(
-                amount=self.get_decimal(record, self.field_config.balance_field)
-                or Decimal(0),
-            )
-            if self.field_config.balance_field
-            else None,
+            balance=(
+                Posting(
+                    amount=self.get_decimal(record, self.field_config.balance_field)
+                    or Decimal(0),
+                )
+                if self.field_config.balance_field
+                else None
+            ),
         )
 
 
@@ -826,6 +828,8 @@ class Importer(beangulp.Importer):
         for key, value in meta.items():
             if value is not None and key not in excluded_fields:
                 kvlist[key] = str(value)
+
+        kvlist["source"] = Path(filepath).name
 
         return beancount.new_metadata(self.filename(filepath), lineno, kvlist=kvlist)
 

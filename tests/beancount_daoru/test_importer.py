@@ -675,6 +675,8 @@ class TestImporterBuildMeta:
         assert "lineno" in meta
         assert meta["bank_csv_lines"] == "ABC123"
         assert meta["error"] == "test error"
+        assert "source" in meta
+        assert meta["source"] == "test.csv"
 
     def test_build_meta_filters_none(
         self,
@@ -691,6 +693,7 @@ class TestImporterBuildMeta:
 
         assert "error" not in meta
         assert "empty_field" not in meta
+        assert "source" in meta
 
     def test_build_meta_include_record_fields(
         self,
@@ -704,6 +707,7 @@ class TestImporterBuildMeta:
         # 默认不包含记录字段
         meta = importer._build_meta(str(test_file), 10, {"bank_csv_lines": "ABC123"})
         assert "bank_csv_lines" not in meta
+        assert "source" in meta
 
         # 启用后包含记录字段
         meta = importer._build_meta(
@@ -711,6 +715,7 @@ class TestImporterBuildMeta:
         )
         assert meta["bank_csv_lines"] == "ABC123"
         assert "lineno" in meta
+        assert "source" in meta
 
 
 class TestImporterAnalyseAccount:
