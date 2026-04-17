@@ -99,9 +99,12 @@ cd "${PROJECT_ROOT}" || {
 }
 
 # ==================== 加载环境配置 ====================
+# 设置标志，告诉 .env 正在被 dev.sh 调用
+export _DEV_SH_RUNNING=1
 if [ -f "${PROJECT_ROOT}/.env" ]; then
   source "${PROJECT_ROOT}/.env"
 fi
+unset _DEV_SH_RUNNING
 
 # ==================== 查找命令（带缓存） ====================
 # 缓存变量，避免重复查找
