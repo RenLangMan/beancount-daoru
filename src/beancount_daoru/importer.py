@@ -831,7 +831,12 @@ class Importer(beangulp.Importer):
 
         kvlist["source"] = Path(filepath).name
 
-        return beancount.new_metadata(self.filename(filepath), lineno, kvlist=kvlist)
+        # 按键名字母排序元数据, 确保输出顺序一致
+        sorted_kvlist = dict(sorted(kvlist.items()))
+
+        return beancount.new_metadata(
+            self.filename(filepath), lineno, kvlist=sorted_kvlist
+        )
 
     def _analyse_account(
         self,
