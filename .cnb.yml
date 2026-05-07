@@ -52,7 +52,7 @@
         shfmt:
           script: |
             echo "🔍 检查 Shell 脚本格式..."
-            shfmt -d -sr scripts/*.sh
+            shfmt -i 2 -ci -d -sr scripts/*.sh
             echo "✅ shfmt 检查完成"
 
         uvlock:

@@ -1000,7 +1000,7 @@ run_llm_status() {
 
   # 检查模型
   echo -e "${BLUE}模型状态:${NC}"
-  if check_model_exists; then
+  if check_model_exists "$LLAMA_MODEL"; then
     print_success "模型文件存在: $LLAMA_MODEL"
     ls -lh "$LLAMA_MODEL" 2> /dev/null | awk '{print "  大小: " $5}'
   else
@@ -1043,7 +1043,7 @@ run_llm_start() {
   fi
 
   # 检查模型
-  if ! check_model_exists; then
+  if ! check_model_exists "$LLAMA_MODEL"; then
     print_warn "模型文件不存在: ${LLAMA_MODEL:-未设置}"
     echo
     read -r -p "是否下载模型？(y/N): " -n 1
