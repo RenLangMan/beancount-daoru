@@ -1,9 +1,9 @@
-"""JD.com importer implementation.
+"""京东(JD.com)导入器实现.
 
-This module provides an importer for JD.com bill files that converts
-JD.com transactions into Beancount entries.
+此模块提供了京东账单文件的导入器,用于将京东交易记录转换为 Beancount 条目。
 """
 
+import contextlib
 import re
 from collections.abc import Iterator
 from datetime import date, datetime
@@ -30,10 +30,26 @@ _STATUS_PATTERN = re.compile(r"\(.*\)")
 
 
 def _validate_amount(v: str) -> str:
+    """验证并清理金额字符串,移除状态标记.
+
+    参数:
+        v: 金额字符串
+
+    返回:
+        移除括号内状态标记后的金额字符串
+    """
     return _STATUS_PATTERN.sub("", v)
 
 
 def _empty_to_none(v: object | None) -> object:
+    """将空字符串转换为 None.
+
+    参数:
+        v: 待转换的值
+
+    返回:
+        如果值为空字符串则返回 None,否则返回原值
+    """
     if v == "":
         return None
     return v
@@ -60,39 +76,89 @@ Record = TypedDict(
 
 
 class Parser(BaseParser):
-    """Parser for JD transaction records.
+    """京东交易记录解析器.
 
-    Implements the Parser protocol to convert JD transaction records
-    into Beancount-compatible structures. Handles JD-specific fields and
-    logic for determining transaction amounts and directions.
+    实现 Parser 协议,将京东交易记录转换为 Beancount 兼容的数据结构。
+    处理京东特定的字段以及确定交易金额和方向的逻辑。
     """
 
     __validator = TypeAdapter(Record)
-    __account_pattern = re.compile(r"京东账号名：(\S+)")  # noqa: RUF001
-    __date_pattern = re.compile(r"日期区间：\d{4}-\d{2}-\d{2} 至 (\d{4}-\d{2}-\d{2})")  # noqa: RUF001
+    __account_pattern = re.compile(r"京东账号名[:：](\S+)")
+    __date_pattern = re.compile(
+        r"日期区间[:：]\d{4}-\d{2}-\d{2} 至 (\d{4}-\d{2}-\d{2})"
+    )
 
     @property
     @override
     def reversed(self) -> bool:
+        """是否需要反转记账方向.
+
+        返回:
+            京东需要反转记账方向,始终返回 True
+        """
         return True
 
     @override
     def extract_metadata(self, texts: Iterator[str]) -> Metadata:
+        """从文本中提取元数据.
+
+        参数:
+            texts: 文本行迭代器
+
+        返回:
+            包含账户和日期的元数据对象
+
+        异常:
+            ValueError: 当无法提取账户或日期信息时抛出
+        """
         account_matches, date_matches = search_patterns(
             texts, self.__account_pattern, self.__date_pattern
         )
+
+        # 提取账户信息, 处理空迭代器情况
+        account_match = next(account_matches, None)
+        if account_match is None:
+            msg = "无法从文件中提取账户信息, 请检查文件格式"
+            raise ValueError(msg)
+
+        # 提取日期信息, 处理空迭代器情况
+        date_match = next(date_matches, None)
+        if date_match is None:
+            msg = "无法从文件中提取日期信息, 请检查文件格式"
+            raise ValueError(msg)
+
         return Metadata(
-            account=next(account_matches).group(1),
-            date=date.fromisoformat(next(date_matches).group(1)),
+            account=account_match.group(1),
+            date=date.fromisoformat(date_match.group(1)),
         )
 
     @override
     def parse(self, record: dict[str, str]) -> Transaction:
+        """解析单条交易记录.
+
+        参数:
+            record: 原始交易记录字典
+
+        返回:
+            转换后的 Beancount 交易对象
+
+        异常:
+            ParserError: 当无法识别交易类型时抛出
+        """
         validated = self.__validator.validate_python(record)
+
+        # 提取日期时间字符串和时间戳
+        raw_datetime_str = record.get("交易时间", "")
+        timestamp = None
+        with contextlib.suppress(ValueError, OSError):
+            timestamp = int(validated["交易时间"].timestamp())
+
         return Transaction(
             date=validated["交易时间"].date(),
             extra=Extra(
                 time=validated["交易时间"].time(),
+                datetime_str=raw_datetime_str or None,
+                timestamp=timestamp,
                 dc=validated["收/支"],
                 status=validated["交易状态"],
                 type=validated["交易分类"],
@@ -109,6 +175,19 @@ class Parser(BaseParser):
         )
 
     def _parse_amount(self, validated: Record) -> Decimal:
+        """解析交易金额和方向.
+
+        根据收支类型和交易状态判断金额的正负号。
+
+        参数:
+            validated: 验证后的交易记录
+
+        返回:
+            带正负号的金额值
+
+        异常:
+            ParserError: 当遇到无法识别的交易组合时抛出
+        """
         dc_key = "收/支"
         status_key = "交易状态"
         match (validated[dc_key], validated[status_key]):
@@ -121,17 +200,16 @@ class Parser(BaseParser):
 
 
 class Importer(BaseImporter):
-    """Importer for JD.com bill files.
+    """京东账单文件导入器.
 
-    Converts JD.com transaction records into Beancount entries using
-    the JD.com extractor and builder implementations.
+    使用京东解析器实现将京东交易记录转换为 Beancount 条目。
     """
 
     def __init__(self, **kwargs: Unpack[ImporterKwargs]) -> None:
-        """Initialize the JD.com importer.
+        """初始化京东导入器.
 
-        Args:
-            **kwargs: Additional configuration parameters.
+        参数:
+            **kwargs: 额外的配置参数
         """
         super().__init__(
             re.compile(r"京东交易流水\(申请时间[^)]*\)_\d+\.csv"),

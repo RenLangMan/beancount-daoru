@@ -4,22 +4,33 @@ from decimal import Decimal
 import pytest
 
 from beancount_daoru.importer import Extra, Metadata, Posting, Transaction
-from beancount_daoru.importers.boc import Parser
+from beancount_daoru.importers.boc import Importer, Parser, _validate_str
 
 
 @pytest.fixture(scope="module")
 def parser() -> Parser:
+    """创建中国银行解析器实例.
+
+    返回:
+        中国银行解析器实例
+    """
     return Parser()
 
 
 def test_extract_metadata(parser: Parser) -> None:
+    """测试从中国银行账单中提取元数据.
+
+    验证解析器能够正确从账单文本中提取:
+        - 借记卡号(账户)
+        - 交易截止日期
+    """
     caption = (
         "中国银行交易流水明细清单\n"
-        "交易区间： 2020-01-01 至2020-12-31 客户姓名： 张三 页数: 1 /1\n"
-        "借记卡号： 6216612345678901234 "
-        "借方发生数： 1,000.00 贷方发生数： 0.00 行数: 10\n"
-        "账号：345671234567 按收支筛选： 全部 按币种筛选： 全部 "
-        "打印时间： 2020/12/31 12:00:00\n"
+        "交易区间: 2020-01-01 至2020-12-31 客户姓名: 张三 页数: 1 /1\n"
+        "借记卡号: 6216612345678901234 "
+        "借方发生数: 1,000.00 贷方发生数: 0.00 行数: 10\n"
+        "账号:345671234567 按收支筛选: 全部 按币种筛选: 全部 "
+        "打印时间: 2020/12/31 12:00:00\n"
         "温馨提示: 1.记账日期/时间为系统进行记账处理的日期/时间,"
         "可能与实际交易提交时间存在差异。\n"
         "第 1 页/共 1页"
@@ -33,6 +44,7 @@ def test_extract_metadata(parser: Parser) -> None:
 
 PARSE_PARAMS_LIST = [
     (
+        # 测试场景1:结息交易
         {
             "记账日期": "2020-01-01",
             "记账时间": "10:00:00",
@@ -67,6 +79,7 @@ PARSE_PARAMS_LIST = [
         ),
     ),
     (
+        # 测试场景2:网上快捷支付(财付通交易)
         {
             "记账日期": "2020-01-02",
             "记账时间": "11:00:00",
@@ -110,4 +123,87 @@ PARSE_PARAMS_LIST = [
 def test_parse(
     parser: Parser, record: dict[str, str], transaction: Transaction
 ) -> None:
+    """测试解析中国银行交易记录.
+
+    使用参数化测试验证解析器能够正确处理各种交易类型:
+        - 结息交易(收入)
+        - 网上支付交易(支出)
+
+    参数:
+        parser: 中国银行解析器实例
+        record: 原始交易记录数据
+        transaction: 期望的解析结果
+    """
     assert parser.parse(record) == transaction
+
+
+def test_reversed_property(parser: Parser) -> None:
+    """测试 reversed 属性返回 True.
+
+    中国银行需要反转记账方向。
+    """
+    assert parser.reversed is True
+
+
+def test_extract_metadata_missing_account(parser: Parser) -> None:
+    """测试提取元数据时缺少账户信息抛出异常."""
+    caption = (
+        "中国银行交易流水明细清单\n"
+        "交易区间: 2020-01-01 至2020-12-31 客户姓名: 张三 页数: 1 /1\n"
+        "交易区间: 2020-01-01 至2020-12-31\n"
+        "打印时间: 2020/12/31 12:00:00\n"
+        "第 1 页/共 1页"
+    )
+    with pytest.raises(ValueError, match="无法从文件中提取账户信息"):
+        parser.extract_metadata(iter([caption]))
+
+
+def test_extract_metadata_missing_date(parser: Parser) -> None:
+    """测试提取元数据时缺少日期信息抛出异常."""
+    caption = (
+        "中国银行交易流水明细清单\n"
+        "借记卡号: 6216612345678901234 "
+        "借方发生数: 1,000.00 贷方发生数: 0.00 行数: 10\n"
+        "账号:345671234567 按收支筛选: 全部 按币种筛选: 全部\n"
+        "温馨提示: 1.记账日期/时间为系统进行记账处理的日期/时间\n"
+        "第 1 页/共 1页"
+    )
+    with pytest.raises(ValueError, match="无法从文件中提取日期信息"):
+        parser.extract_metadata(iter([caption]))
+
+
+def test_validate_str_with_none() -> None:
+    """测试 _validate_str 处理 None 值."""
+
+    result = _validate_str(None)
+    assert result is None
+
+
+def test_validate_str_with_dashes() -> None:
+    """测试 _validate_str 处理全连字符值."""
+
+    result = _validate_str("-------------------")
+    assert result is None
+
+
+def test_validate_str_with_newline() -> None:
+    """测试 _validate_str 处理带换行符的值."""
+
+    result = _validate_str("Hello\nWorld")
+    assert result == "HelloWorld"
+
+
+def test_validate_str_with_normal_value() -> None:
+    """测试 _validate_str 处理普通值."""
+
+    result = _validate_str("正常内容")
+    assert result == "正常内容"
+
+
+def test_importer_init() -> None:
+    """测试 Importer 初始化."""
+
+    importer = Importer(account_mapping={}, currency_mapping={})
+    assert importer._Importer__filename_pattern is not None
+    assert importer._Importer__reader is not None
+    assert importer._Importer__parser is not None

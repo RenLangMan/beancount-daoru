@@ -1,0 +1,254 @@
+# 定义公共 CI 模板
+.ci-template: &ci-template
+  runner:
+    tags: cnb:arch:amd64
+    cpus: 24
+  docker:
+    image: docker.cnb.cool/ysundy/beancount/beancount-daoru/beancount-daoru:latest
+    # image: docker.cnb.cool/ysundy/beancount/beancount-daoru/dockerfile-caches:3d2fc27c92b1ef6c74e197c018d96e1154e24bd9
+    volumes:
+      - /opt/models
+  before_script:
+    # 验证工具可用性
+    - |
+      echo "🔍 验证工具可用性..."
+      for tool in ruff basedpyright markdownlint-cli2 shellcheck shfmt pre-commit; do
+        if command -v "$tool" &>/dev/null; then
+          echo "✅ $tool: $(command -v $tool)"
+        else
+          echo "⚠️ $tool 未找到"
+        fi
+      done
+    - echo "✅ 环境验证完成"
+  stages:
+    - name: Checks
+      jobs:
+        validate-title:
+          if: '[ -n "$CNB_PULL_REQUEST_TITLE" ]'
+          script: |
+            title="$CNB_PULL_REQUEST_TITLE"
+            if ! echo "$title" | grep -qE '^(feat|fix|docs|style|refactor|perf|test|chore|build|ci|revert|types|scope)(\(.+\))?!?: .+'; then
+              echo "❌ PR title 格式错误: $title"
+              echo "✅ 应为: <type>(<scope>): <subject>"
+              exit 1
+            fi
+            echo "✅ PR title 格式正确"
+
+        markdownlint:
+          script: markdownlint-cli2 "**/*.md" --fix
+
+        ruff:
+          script: |
+            uv sync --group dev
+            uv run ruff check --verbose
+            uv run ruff format --check --diff --verbose
+
+        shellcheck:
+          script: |
+            echo "🔍 运行 ShellCheck..."
+            shellcheck scripts/*.sh --severity=warning
+            echo "✅ ShellCheck 检查完成"
+
+        shfmt:
+          script: |
+            echo "🔍 检查 Shell 脚本格式..."
+            shfmt -i 2 -ci -d -sr scripts/*.sh
+            echo "✅ shfmt 检查完成"
+
+        uvlock:
+          script: |
+            uv lock
+            uv lock --check
+
+        basedpyright:
+          script: |
+            uv sync --extra llm --group dev
+            uv run basedpyright --verbose
+
+    - name: Test
+      jobs:
+        unit-tests:
+          script: |
+            uv sync --extra llm --group dev
+            uv run pytest --verbose -m "not llm"
+        llm-tests:
+          script: |
+            if [ -f /opt/models/qwen3-4b-instruct.gguf ]; then
+              uv sync --extra llm --group dev
+              uv run pytest --verbose -m "llm"
+            else
+              echo "⚠️ 跳过 LLM 测试：模型未挂载"
+            fi
+
+# main 分支配置
+main:
+  pull_request:
+    - *ci-template
+
+# feat/* 分支配置
+"feat/*":
+  push:
+    - *ci-template
+  pull_request:
+    - *ci-template
+
+# 发布流水线（Tag 触发）
+"v*.*.*":
+  tag_push:
+    release:
+      runner:
+        tags: cnb:arch:amd64
+      docker:
+        image: docker.cnb.cool/ysundy/beancount/beancount-daoru/beancount-daoru:latest
+        volumes:
+          - /opt/models
+      stages:
+        - name: Build and Test
+          script: |
+            pip install uv build twine
+            uv sync --extra llm --group dev
+            uv run pytest --verbose -m "not llm"
+            uv build
+        - name: Publish
+          script: |
+            twine upload dist/*
+          env:
+            TWINE_USERNAME: __token__
+            TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+          artifacts:
+            - dist/
+
+# 云原生开发环境配置
+$:
+  vscode:
+    clouddev:
+      docker:
+        image: docker.cnb.cool/ysundy/beancount/beancount-daoru/beancount-daoru:latest
+        # 卷挂载配置
+        volumes:
+          - /opt/models # 持久化模型目录
+      runner:
+        tags: cnb:arch:amd64
+        cpus: 10
+      env:
+        LLAMA_MODEL: /opt/models/qwen3-4b-instruct.gguf
+        LLAMA_HOST: 0.0.0.0
+        LLAMA_PORT: 8080
+        LLAMA_N_GPU_LAYERS: 0
+        LLAMA_CONTEXT_SIZE: 2048
+        TEST_EMBEDDING_MODEL: /opt/models/embeddinggemma-300m-Q4_0.gguf
+        TEST_CHAT_MODEL: /opt/models/qwen3-4b-instruct.gguf
+      services:
+        - vscode
+        - docker
+      stages:
+        - name: Setup environment
+          script: |
+            set -e
+            cd /workspace
+
+            # 检查模型是否已挂载
+            if [ -d /opt/models ] && [ "$(ls -A /opt/models 2>/dev/null)" ]; then
+              echo "✅ 模型卷已挂载，包含以下模型："
+              ls -lh /opt/models/
+            else
+              echo "⚠️ 模型卷为空或未挂载"
+              echo "💡 首次使用需要下载模型到 /opt/models"
+
+              # 可选：首次使用时自动下载模型
+              if [ "${DOWNLOAD_MODELS_ON_FIRST_RUN:-false}" = "true" ]; then
+                echo "📦 下载 Embedding 模型..."
+                curl -L -o /opt/models/embeddinggemma-300m-Q4_0.gguf \
+                  "https://huggingface.co/unsloth/embeddinggemma-300m-GGUF/resolve/main/embeddinggemma-300m-Q4_0.gguf"
+
+                echo "📦 下载 Qwen3-4B 模型..."
+                curl -L -o /opt/models/qwen3-4b-instruct.gguf \
+                  "https://huggingface.co/MaziyarPanahi/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507.Q4_K_M.gguf"
+              fi
+            fi
+
+            # 生成 .env 文件
+            if [ ! -f .env ]; then
+              cat > .env << 'ENVEOF'
+            # .env - 环境配置文件
+
+            # ===== UV 配置 =====
+            export UV_LINK_MODE="copy"
+            export UV_INDEX_URL="https://mirrors.cloud.tencent.com/pypi/simple/"
+            export UV_CONCURRENT_DOWNLOADS=50
+            export UV_CACHE_DIR="${HOME}/.cache/uv"
+
+            # ===== 项目配置 =====
+            export PROJECT_ROOT="/workspace"
+
+            # ===== LLM (llama.cpp) 配置 =====
+            # Linux/macOS 环境
+            export IS_WINDOWS=false
+            export LLAMA_MODEL_DIR="/opt/models"
+
+            # ===== 模型文件配置 =====
+            # 测试模型（用于 pytest，优先级高于 LLAMA_MODEL）
+            # Embedding 模型（用于向量嵌入测试）
+            export TEST_EMBEDDING_MODEL="${LLAMA_MODEL_DIR}/embeddinggemma-300m-Q4_0.gguf"
+
+            # Chat Completion 模型（用于对话补全测试）
+            export TEST_CHAT_MODEL="${LLAMA_MODEL_DIR}/qwen3-4b-instruct.gguf"
+
+            # 服务配置
+            export LLAMA_HOST="0.0.0.0"
+            export LLAMA_PORT="8080"
+
+            # GPU 层数（CPU 模式设为 0，GPU 模式设为较大值如 99）
+            export LLAMA_N_GPU_LAYERS="0"
+
+            # 上下文大小
+            export LLAMA_CONTEXT_SIZE="2048"
+
+            # ===== 虚拟环境自动激活 =====
+            # 在 ~/.zshrc 中添加: source /workspace/.env
+            # 虚拟环境将自动激活（如果不存在则运行 setup）
+            export VENV_PATH="\${PROJECT_ROOT}/.venv"
+            if [ ! -d "$VENV_PATH" ] || [ ! -f "$VENV_PATH/bin/activate" ]; then
+              echo "📦 虚拟环境不存在，正在初始化..."
+              cd "\${PROJECT_ROOT}" && ./scripts/dev.sh setup
+            fi
+            source "$VENV_PATH/bin/activate"
+            ENVEOF
+              echo "✅ 已创建 .env"
+            else
+              echo "⏭️ .env 已存在，跳过创建"
+            fi
+
+            # 自动加载 .env 到 ~/.zshrc
+            if ! grep -q "source /workspace/.env" ~/.zshrc 2>/dev/null; then
+              echo "" >> ~/.zshrc
+              echo "# Auto-load project environment" >> ~/.zshrc
+              echo "source /workspace/.env" >> ~/.zshrc
+              echo "✅ 已添加 .env 到 ~/.zshrc"
+            fi
+
+            # 加载当前会话环境变量（使用绝对路径）
+            if [ -f /workspace/.env ]; then
+              source /workspace/.env
+              echo "✅ 已加载 .env 环境变量"
+            else
+              echo "⚠️ .env 文件不存在，跳过加载"
+            fi
+
+            # 安装依赖
+            echo "📦 安装项目依赖..."
+            uv sync --all-extras --dev --link-mode=copy
+            echo "✅ 依赖安装完成"
+
+            # 安装 pre-commit
+            if [ -d /workspace/.git ]; then
+              echo "🔧 发现git仓库，开始安装 pre-commit..."
+              uv tool install pre-commit --with pre-commit-uv || true
+              pre-commit install || true
+              pre-commit install --hook-type pre-push || true
+              echo "✅ pre-commit 配置完成"
+            else
+                echo "⚠️ 不是 Git 仓库，跳过 pre-commit 安装"
+            fi
+
+            echo "✅ 环境配置完成"
