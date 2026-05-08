@@ -3,7 +3,6 @@
 此模块提供了京东账单文件的导入器,用于将京东交易记录转换为 Beancount 条目。
 """
 
-import contextlib
 import re
 from collections.abc import Iterator
 from datetime import date, datetime
@@ -24,7 +23,7 @@ from beancount_daoru.importer import (
 from beancount_daoru.importer import Importer as BaseImporter
 from beancount_daoru.importer import Parser as BaseParser
 from beancount_daoru.readers import excel
-from beancount_daoru.utils import search_patterns
+from beancount_daoru.utils import TZ_UTC8, search_patterns
 
 _STATUS_PATTERN = re.compile(r"\(.*\)")
 
@@ -147,11 +146,15 @@ class Parser(BaseParser):
         """
         validated = self.__validator.validate_python(record)
 
-        # 提取日期时间字符串和时间戳
+        # 获取原始时间字符串
         raw_datetime_str = record.get("交易时间", "")
-        timestamp = None
-        with contextlib.suppress(ValueError, OSError):
-            timestamp = int(validated["交易时间"].timestamp())
+
+        # 使用统一时区生成时间戳
+        dt = validated["交易时间"]
+        # 如果 datetime 对象没有时区信息, 添加 UTC+8 时区
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=TZ_UTC8)
+        timestamp = int(dt.timestamp())
 
         return Transaction(
             date=validated["交易时间"].date(),
