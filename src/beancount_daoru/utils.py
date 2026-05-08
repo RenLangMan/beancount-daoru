@@ -8,8 +8,11 @@ import itertools
 import re
 import zipfile
 from collections.abc import Iterator
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+
+# 统一时区东八区,用于统一时间戳生成
+TZ_UTC8 = timezone(timedelta(hours=8))
 
 
 def search_patterns(
@@ -83,10 +86,9 @@ def parse_datetime_flexible(date_str: str) -> datetime | None:
     for fmt in formats:
         try:
             dt = datetime.strptime(date_str.strip(), fmt)  # noqa: DTZ007
-            # 如果是两位年份格式, 补充当前年份
             if "%m/%d" in fmt and dt.year == default_year:
                 dt = dt.replace(year=datetime.now().year)  # noqa: DTZ005
-            return dt  # noqa: TRY300
+            return dt.replace(tzinfo=TZ_UTC8)
         except ValueError:  # noqa: PERF203
             continue
 
