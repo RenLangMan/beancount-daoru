@@ -3,7 +3,6 @@
 此模块提供了支付宝账单文件的导入器,用于将支付宝交易记录转换为 Beancount 条目。
 """
 
-import contextlib
 import csv
 import fnmatch
 import re
@@ -30,7 +29,7 @@ from beancount_daoru.importer import (
 from beancount_daoru.importer import Importer as BaseImporter
 from beancount_daoru.importer import Parser as BaseParser
 from beancount_daoru.readers import excel
-from beancount_daoru.utils import search_patterns
+from beancount_daoru.utils import TZ_UTC8, search_patterns
 
 
 def _validate_str(v: str | None) -> str | None:
@@ -251,11 +250,15 @@ class Parser(BaseParser):
                     ),
                 )
 
-        # 提取日期时间字符串和时间戳
+        # 获取原始时间字符串
         raw_datetime_str = record.get("交易时间", "")
-        timestamp = None
-        with contextlib.suppress(ValueError, OSError):
-            timestamp = int(validated["交易时间"].timestamp())
+
+        # 使用统一时区生成时间戳
+        dt = validated["交易时间"]
+        # 如果 datetime 对象没有时区信息, 添加 UTC+8 时区
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=TZ_UTC8)
+        timestamp = int(dt.timestamp())
 
         # 提取源文件信息
         source_file = record.get("source_file")
