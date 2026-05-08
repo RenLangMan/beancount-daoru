@@ -1,6 +1,6 @@
-"""Importers package for Chinese financial institutions.
+"""中国金融机构导入器包.
 
-This package contains importer implementations for various Chinese financial
-institutions and payment platforms. Each module combines an extractor and
-a builder to convert institution-specific transaction records into Beancount entries.
+此包包含了针对中国各类金融机构和支付平台的导入器实现。
+每个模块结合了提取器(extractor)和构建器(builder),
+将机构特定的交易记录转换为 Beancount 条目。
 """

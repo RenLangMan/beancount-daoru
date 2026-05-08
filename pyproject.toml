@@ -15,6 +15,7 @@ dependencies = [
     "pyexcel-xlsxr>=0.6.2",
     "pdfplumber>=0.11.8",
     "typing-extensions>=4.15.0",
+    "fava>=1.30.12",
 ]
 requires-python = ">=3.10"
 authors = [{ name = "AN Qi", email = "aqnin@outlook.com" }]
@@ -28,35 +29,53 @@ repository = "https://github.com/aqni/beancount-daoru"
 
 [project.optional-dependencies]
 llm = ["diskcache>=5.6.3", "openai>=2.11.0", "usearch>=2.21.0"]
+fava = ["fava>=1.30"]                                           # 可选依赖
+
+[project.scripts]
+beancount-rebuild = "beancount_daoru.rebuilder.cli:main"
 
 [dependency-groups]
 dev = [
     "pytest>=9.0",
     "pytest-cov>=7.0",
     "pytest-xprocess>=1.0.2",
+    "pytest-asyncio>=0.25.0",
     "gitpython>=3.1",
     "ruff>=0.14.7",
+    "mdformat>=1.0.0",
+    "mdformat-gfm>=0.3.7",
+    "mdformat-frontmatter>=2.0",
     "debugpy>=1.8.18",
     "basedpyright>=1.36.1",
+    "pre-commit>=4.5.1",
+    "shellcheck-py>=0.11.0",
+    # "shfmt-py>=3.12.0",
 ]
 
 [tool.pytest.ini_options]
 addopts = "--cov=src/ --cov-branch"
 testpaths = ["tests"]
+markers = [
+    "llm: marks tests that require LLM models (deselect with '-m \"not llm\"')",
+]
 disable_test_id_escaping_and_forfeit_all_rights_to_community_support = true
 
 [tool.ruff]
 lint.extend-select = ["ALL"]
-lint.extend-ignore = ["COM812"]
+lint.extend-ignore = ["COM812", "RUF001"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["D", "S101", "S603", "RUF001"]
-"examples/*" = ["D", "INP001"]
+"tests/*" = ["D", "S101", "S603", "RUF001", "PLR2004", "ANN", "ARG"]  # 测试文件允许使用 magic numbers 和 assert
+"examples/*.py" = ["D", "INP001", "E402"]  # chdir before third-party imports
+"tests/**/*.py" = ["ERA001", "SLF001", "INP001"]      # 允许测试文件中的注释
+"scripts/*" = ["T201", "PLC0415", "EXE001", "TRY300", "ISC003", "S603"]  # 脚本允许使用 print, 局部 import, try 中的 return, 显式字符串拼接
+"src/beancount_daoru/rebuilder/*.py" = ["T201", "TRY300", "RUF002", "RUF003"]  # rebuilder 模块允许 print 和全角字符
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.basedpyright]
+typeCheckingMode = "standard"
 allowedUntypedLibraries = [
     "beangulp",
     "diskcache",
@@ -64,5 +83,29 @@ allowedUntypedLibraries = [
     "pyexcel",
     "usearch",
 ]
+include = ["src"]
+exclude = ["tests", "examples", "scripts"]
+
+# Shell 脚本格式化配置 (shfmt)
+# 文档: https://github.com/mvdan/sh
+[tool.shfmt]
+indent = 2                    # 缩进 2 空格
+binary_next_line = true      # 二元运算符换行
+switch_case_indent = true    # switch case 缩进
+space_redirects = true       # 空格重定向
+keep_padding = true          # 保持对齐
+
+# TOML 格式化配置 (toml-sort)
+# 文档: https://pypi.org/project/toml-sort/
+[tool.toml-sort]
+all = true                   # 排序所有表和键
+in_place = true              # 原地修改
+spaces_indent_inline_array = 2
+
+# Markdown 格式化配置 (mdformat)
+# 文档: https://mdformat.readthedocs.io/
+[tool.mdformat]
+wrap = "keep"               # 保持现有换行
+number = true              # 有序列表重新编号为 1,2,3...
 
 # See https://packaging.python.org for more information on Python project metadata

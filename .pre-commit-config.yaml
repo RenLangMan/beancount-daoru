@@ -1,0 +1,99 @@
+repos:
+  # 基础检查和修复
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: "^examples/"
+      - id: end-of-file-fixer
+        exclude: "^examples/"
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: ["--fix=auto"]
+
+  # Ruff：代码检查和格式化（替代 flake8, isort, black）
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.7
+    hooks:
+      # 运行 ruff 检查并自动修复
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      # 运行 ruff 格式化
+      - id: ruff-format
+
+  # Markdown 检查（需要在根目录创建 .markdownlint-cli2.yaml）
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.12.1
+    hooks:
+      - id: markdownlint-cli2
+
+  # Markdown 格式化 (mdformat)
+  - repo: https://github.com/executablebooks/mdformat
+    rev: 1.0.0
+    hooks:
+      - id: mdformat
+        additional_dependencies:
+          - mdformat-gfm
+          - mdformat-frontmatter
+        args: [--wrap, "keep", --number]
+        exclude: |
+          (?x)^(
+              CHANGELOG.md |
+              LICENSE.md
+          )$
+
+  # # Shell 脚本检查
+  # - repo: https://github.com/shellcheck-py/shellcheck-py
+  #   rev: v0.11.0.1
+  #   hooks:
+  #     - id: shellcheck
+  #       args: ["--severity=warning"]
+
+  # Shell 脚本格式化
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.13.1-1
+    hooks:
+      - id: shfmt
+        args: [-i, "2", -ci, -sr, -w]
+        # -i 2: 缩进 2 空格
+        # -ci: case 语句缩进（启用）
+        # -sr: 重定向操作符后加空格
+        # -w: 写入文件
+
+  # 类型检查（使用包装脚本）
+  - repo: local
+    hooks:
+      - id: basedpyright
+        name: basedpyright
+        entry: bash scripts/pre-commit-uv.sh run basedpyright --level error src/
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        verbose: true
+        stages: [pre-push] # 只在 pre-push 时运行类型检查
+
+  # 检查 uv.lock 是否最新（使用包装脚本）
+  - repo: local
+    hooks:
+      - id: uv-lock-check
+        name: uv lock check
+        entry: bash scripts/pre-commit-uv.sh lock --check
+        language: system
+        pass_filenames: false
+        always_run: true
+        verbose: true
+
+  # 测试（pre-push 时运行，仅非 LLM 测试）
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: bash scripts/pre-commit-uv.sh run pytest -m "not llm"
+        language: system
+        pass_filenames: false
+        always_run: false
+        stages: [pre-push]

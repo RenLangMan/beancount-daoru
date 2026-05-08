@@ -1,7 +1,6 @@
-"""WeChat Pay importer implementation.
+"""微信支付导入器实现.
 
-This module provides an importer for WeChat Pay bill files that converts
-WeChat Pay transactions into Beancount entries.
+此模块提供了微信支付账单文件的导入器,用于将微信支付交易记录转换为 Beancount 条目。
 """
 
 import re
@@ -24,10 +23,18 @@ from beancount_daoru.importer import (
 from beancount_daoru.importer import Importer as BaseImporter
 from beancount_daoru.importer import Parser as BaseParser
 from beancount_daoru.readers import excel
-from beancount_daoru.utils import search_patterns
+from beancount_daoru.utils import TZ_UTC8, search_patterns
 
 
 def _validate_str(v: str | None) -> str | None:
+    """验证并清理字符串值.
+
+    参数:
+        v: 待验证的字符串
+
+    返回:
+        如果值为空或斜杠则返回 None,否则返回原值
+    """
     if v is None:
         return None
     if v in ("", "/"):
@@ -36,6 +43,14 @@ def _validate_str(v: str | None) -> str | None:
 
 
 def _split_amount(v: str) -> tuple[str, str]:
+    """拆分金额字符串,分离币种符号和数值.
+
+    参数:
+        v: 包含币种符号的金额字符串,如 "¥100.00"
+
+    返回:
+        (币种符号, 金额数值字符串) 元组
+    """
     return v[0], v[1:]
 
 
@@ -60,39 +75,93 @@ Record = TypedDict(
 
 
 class Parser(BaseParser):
-    """Parser for WeChat Pay transaction records.
+    """微信支付交易记录解析器.
 
-    Implements the Parser protocol to convert WeChat Pay transaction records
-    into Beancount-compatible structures. Handles WeChat Pay-specific fields and
-    logic for determining transaction amounts and directions.
+    实现 Parser 协议,将微信支付交易记录转换为 Beancount 兼容的数据结构。
+    处理微信支付特定的字段以及确定交易金额和方向的逻辑。
     """
 
     __validator = TypeAdapter(Record)
-    __account_pattern = re.compile(r"微信昵称：\[([^\]]*)\]")  # noqa: RUF001
-    __date_pattern = re.compile(r"终止时间：\[(\d{4}-\d{2}-\d{2}) \d{2}:\d{2}:\d{2}]")  # noqa: RUF001
+    __account_pattern = re.compile(r"微信昵称[:：]\[([^\]]*)\]")
+    __date_pattern = re.compile(
+        r"终止时间[:：]\[(\d{4}-\d{2}-\d{2}) \d{2}:\d{2}:\d{2}]"
+    )
 
     @property
     @override
     def reversed(self) -> bool:
+        """是否需要反转记账方向.
+
+        返回:
+            微信支付需要反转记账方向,始终返回 True
+        """
         return True
 
     @override
     def extract_metadata(self, texts: Iterator[str]) -> Metadata:
+        """从文本中提取元数据.
+
+        参数:
+            texts: 文本行迭代器
+
+        返回:
+            包含账户和日期的元数据对象
+
+        异常:
+            ValueError: 当无法提取账户或日期信息时抛出
+        """
         account_matches, date_matches = search_patterns(
             texts, self.__account_pattern, self.__date_pattern
         )
+
+        # 提取账户信息, 处理空迭代器情况
+        account_match = next(account_matches, None)
+        if account_match is None:
+            msg = "无法从文件中提取账户信息, 请检查文件格式"
+            raise ValueError(msg)
+
+        # 提取日期信息, 处理空迭代器情况
+        date_match = next(date_matches, None)
+        if date_match is None:
+            msg = "无法从文件中提取日期信息, 请检查文件格式"
+            raise ValueError(msg)
+
         return Metadata(
-            account=next(account_matches).group(1),
-            date=date.fromisoformat(next(date_matches).group(1)),
+            account=account_match.group(1),
+            date=date.fromisoformat(date_match.group(1)),
         )
 
     @override
     def parse(self, record: dict[str, str]) -> Transaction:
+        """解析单条交易记录.
+
+        参数:
+            record: 原始交易记录字典
+
+        返回:
+            转换后的 Beancount 交易对象
+
+        异常:
+            ParserError: 当无法识别交易类型时抛出
+        """
         validated = self.__validator.validate_python(record)
+
+        # 获取原始时间字符串
+        raw_datetime_str = record.get("交易时间", "")
+
+        # 使用统一时区生成时间戳
+        dt = validated["交易时间"]
+        # 如果 datetime 对象没有时区信息, 添加 UTC+8 时区
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=TZ_UTC8)
+        timestamp = int(dt.timestamp())
+
         return Transaction(
             date=validated["交易时间"].date(),
             extra=Extra(
                 time=validated["交易时间"].time(),
+                datetime_str=raw_datetime_str or None,
+                timestamp=timestamp,
                 dc=validated["收/支"],
                 status=validated["当前状态"],
                 type=validated["交易类型"],
@@ -104,6 +173,17 @@ class Parser(BaseParser):
         )
 
     def _parse_postings(self, validated: Record) -> Iterator[Posting]:
+        """解析记账分录.
+
+        参数:
+            validated: 验证后的交易记录
+
+        返回:
+            记账分录迭代器
+
+        异常:
+            ParserError: 当无法解析交易类型时抛出
+        """
         account, amount, counter_party, other_posting = self._parse_simple_postings(
             validated
         )
@@ -128,6 +208,17 @@ class Parser(BaseParser):
     def _parse_simple_postings(
         self, validated: Record
     ) -> tuple[str, Decimal, str | None, Posting | None]:
+        """解析基础记账分录,处理微信支付的各种交易场景.
+
+        参数:
+            validated: 验证后的交易记录
+
+        返回:
+            (支付账户, 金额, 对方账户, 额外分录) 元组
+
+        异常:
+            ParserError: 当遇到无法识别的交易组合时抛出
+        """
         dc_key = "收/支"
         type_key = "交易类型"
         status_key = "当前状态"
@@ -150,6 +241,7 @@ class Parser(BaseParser):
             status,
             validated[remarks_key],
         ):
+            # 普通消费支出
             case (
                 (
                     "支出",
@@ -162,6 +254,7 @@ class Parser(BaseParser):
                 | ("支出", "转账", "对方已收钱", _)
             ):
                 return method, -amount, None, None
+            # 收入类交易
             case (
                 ("收入", "其他", "已到账", _)
                 | ("收入", "商户消费", "充值成功", _)
@@ -171,12 +264,16 @@ class Parser(BaseParser):
                 | ("收入", "退款", "已退款" | "已全额退款", _)
             ):
                 return method, amount, None, None
+            # 转入零钱通
             case (None, str(x), "支付成功", _) if x.startswith("转入零钱通-来自"):
                 return method, -amount, "零钱通", None
+            # 零钱通转出
             case (None, str(x), "支付成功", _) if x.startswith("零钱通转出-到"):
                 return "零钱通", -amount, x[len("零钱通转出-到") :], None
+            # 零钱充值
             case (None, "零钱充值", "充值完成", _):
                 return method, -amount, "零钱", None
+            # 处理零钱提现(可能包含服务费)  # noqa: ERA001
             case (None, "零钱提现", "提现已到账", str(x)) if x.startswith("服务费"):
                 currency_and_amount = x[len("服务费") :]
                 return (
@@ -194,17 +291,16 @@ class Parser(BaseParser):
 
 
 class Importer(BaseImporter):
-    """Importer for WeChat Pay bill files.
+    """微信支付账单文件导入器.
 
-    Converts WeChat Pay transaction records into Beancount entries using
-    the WeChat Pay parser implementation.
+    使用微信支付解析器实现将微信支付交易记录转换为 Beancount 条目。
     """
 
     def __init__(self, **kwargs: Unpack[ImporterKwargs]) -> None:
-        """Initialize the WeChat Pay importer.
+        """初始化微信支付导入器.
 
-        Args:
-            **kwargs: Additional configuration parameters.
+        参数:
+            **kwargs: 额外的配置参数
         """
         super().__init__(
             re.compile(r"微信支付账单流水文件\(\d{8}-\d{8}\).*\.xlsx"),
