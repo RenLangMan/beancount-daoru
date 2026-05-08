@@ -7,6 +7,7 @@ import pytest
 
 from beancount_daoru.importer import Metadata
 from beancount_daoru.importers.alipay import Parser as AlipayParser
+from beancount_daoru.utils import TZ_UTC8
 
 
 class TestAlipayParser:
@@ -278,6 +279,8 @@ class TestAlipayParserParse:
 
     def test_parse_timestamp_generated(self, parser: AlipayParser) -> None:
         """测试时间戳生成."""
+        # from beancount_daoru.utils import TZ_UTC8
+
         record = {
             "交易时间": "2024-01-15 12:00:00",
             "交易对方": "Test",
@@ -293,8 +296,8 @@ class TestAlipayParserParse:
 
         tx = parser.parse(record)
 
-        # 2024-01-15 12:00:00 的 Unix 时间戳
-        dt = datetime(2024, 1, 15, 12, 0, 0, tzinfo=None)  # noqa: DTZ001
+        # 2024-01-15 12:00:00 的 Unix 时间戳(使用 UTC+8 时区)
+        dt = datetime(2024, 1, 15, 12, 0, 0, tzinfo=TZ_UTC8)
         expected_timestamp = int(dt.timestamp())
         assert tx.extra.timestamp == expected_timestamp
 
